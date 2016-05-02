@@ -361,9 +361,6 @@ class Zookeeper(object):
     @django.db.transaction.atomic
     def configure_root(self, handle, resources):
 
-        # XXX This should be some other exception, not an assertion
-        assert self.run_rpkid and self.run_pubd
-
         if not handle:
             handle = self.handle
 

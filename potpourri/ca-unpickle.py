@@ -15,6 +15,7 @@ tk705/ rpki-ca instance into an equivalent state.
 
 import os
 import sys
+import uuid
 import time
 import cPickle
 import datetime
@@ -24,9 +25,9 @@ import subprocess
 import rpki.config
 import rpki.x509
 import rpki.POW
+import rpki.resource_set
 
 from base64 import urlsafe_b64encode
-
 
 class LazyDict(object):
     """
@@ -35,7 +36,8 @@ class LazyDict(object):
     """
 
     def __init__(self, *args, **kwargs):
-        self._d = dict(*args, **kwargs)
+        #self._d = dict(*args, **kwargs)
+        self.__dict__["_d"] = dict(*args, **kwargs)
         for k, v in self._d.iteritems():
             self._d[k] = self._insinuate(v)
 
@@ -46,6 +48,12 @@ class LazyDict(object):
         if name in self._d:
             return self._d[name]
         raise AttributeError
+
+    def __setattr__(self, name, value):
+        if name in self._d:
+            self._d[name] = value
+        else:
+            raise AttributeError
 
     def __getitem__(self, name):
         return self._d[name]
@@ -70,9 +78,14 @@ class LazyDict(object):
         return thing
 
 
-# None-safe wrappers for DER constructors.
+# None-safe wrappers for ASN.1 constructors.
 def NoneSafe(obj, cls):
-    return None if obj is None else cls(DER = obj)
+    if obj is None:
+        return None
+    elif "-----BEGIN" in obj:
+        return cls(PEM = obj)
+    else:
+        return cls(DER = obj)
 
 def X509(obj):   return NoneSafe(obj, rpki.x509.X509)
 def CRL(obj):    return NoneSafe(obj, rpki.x509.CRL)
@@ -151,61 +164,379 @@ class Root(object):
         if not self.enabled:
             return
 
-        rootd = world.cfg.rootd
+        r = world.cfg.rootd
+        d = os.path.join(r.rpki_root_dir, "")
 
-        self.root_dir = rootd["rpki-root-dir"]
-        self.root_cer = X509(world.file[                            rootd["rpki-root-cert"    ] ])
-        self.root_key = RSA( world.file[                            rootd["rpki-root-key"     ] ])
-        self.root_crl = CRL( world.file[os.path.join(self.root_dir, rootd["rpki-root-crl"     ])])
-        self.root_mft = MFT( world.file[os.path.join(self.root_dir, rootd["rpki-root-manifest"])])
-        self.work_cer = X509(world.file[os.path.join(self.root_dir, rootd["rpki-subject-cert" ])])
+        rpki_root_cer  = X509(world.file[    r.rpki_root_cert    ])
+        rpki_root_key  = RSA( world.file[    r.rpki_root_key     ])
+        rpki_root_crl  = CRL( world.file[d + r.rpki_root_crl     ])
+        rpki_root_mft  = MFT( world.file[d + r.rpki_root_manifest])
+        rpki_work_cer  = X509(world.file[d + r.rpki_subject_cert ])
 
-        self.next_serial = 1 + max(
-            self.root_cer.getSerial(),
-            self.work_cer.getSerial(),
-            self.root_mft.get_POW().certs()[0].getSerial())
+        rootd_bpki_ta  = X509(world.file[    r.bpki_ta           ])
+        rootd_bpki_cer = X509(world.file[    r.rootd_bpki_cert   ])
+        rootd_bpki_key = RSA( world.file[    r.rootd_bpki_key    ])
+        child_bpki_cer = X509(world.file[    r.child_bpki_cert   ])
 
-        self.root_mft.extract()
+        rpki_root_resources  = rpki_root_cer.get_3779resources()
+        rpki_root_class_name = r.rpki_class_name
 
-        self.next_crl_manifest_number = 1 + max(
-            self.root_mft.get_POW().getManifestNumber(),
-            self.root_crl.getCRLNumber())
+        rpki_root_mft_key = rpki.x509.RSA.generate()
+
+        # Maybe we'll figure out a prettier handle to use later
+        root_handle = str(uuid.uuid4())
+
+        rpki_root_last_serial = max(
+            rpki_root_cer.getSerial(),
+            rpki_work_cer.getSerial(),
+            rpki_root_mft.get_POW().certs()[0].getSerial())
+
+        rpki_root_mft.extract()
+
+        rpki_root_last_crl_manifest_number = max(
+            rpki_root_mft.get_POW().getManifestNumber(),
+            rpki_root_crl.getCRLNumber())
 
         turtles = tuple(row for row in world.db.irdbd.irdb_turtle
-                        if row.id not in (r.turtle_ptr_id
-                                          for r in world.db.irdbd.irdb_parent))
+                        if row.id not in 
+                        frozenset(p.turtle_ptr_id for p in world.db.irdbd.irdb_parent))
         if len(turtles) != 1:
             raise RuntimeError("Expected to find exactly one Parentless Turtle")
         self.rootd_turtle_id = turtles[0].id
-        self.rootd_turtle_service_uri = turtles[0].service_uri
+        rootd_turtle_service_uri = turtles[0].service_uri
 
-        print "Root key: {0.root_key!r}".format(self)
-        print "Root cerificate: {0.root_cer!r}".format(self)
-        print "Working certificate: {0.work_cer!r}".format(self)
-        print "Next certificate serial: {0.next_serial}".format(self)
-        print "Next CRL/manifest number: {0.next_crl_manifest_number}".format(self)
-        print "Rootd turtle ID {0.rootd_turtle_id}".format(self)
-        print "Rootd service URI:{0.rootd_turtle_service_uri}".format(self)
+        assert len(world.db.irdbd.irdb_serverca) == 1
+        serverca = world.db.irdbd.irdb_serverca[0]
+        serverca_cer = X509(serverca.certificate)
+        serverca_key = RSA(serverca.private_key)
 
-        # We need to build up the arguments that the forked functions should use
-        # to create all of the missing objects needed to replace rootd.  We can't
-        # (or, rather, shouldn't) attempt to generate SQL id values ourselves,
-        # let Django handle that, but everything else we should be able to do.
-        #
-        # Relatively readable way of doing this would probably be to have one
-        # dict per model creation call, containing all the keyword argument stuff
-        # needed to create that model except for ID values Django will create
-        # (and the forked functions will have to fill in, but they can do that,
-        # because such ID values will never cross databases).  So we end up
-        # setting a bunch of attributes in this template object, one per
-        # model, each containing a dict for that model.
+        rootd = world.db.irdbd.irdb_rootd[0]
 
-        # XXX
-        self.irdb_Parent = dict()
-        self.rpkid_Tenant = dict()
-        self.rpkid_Parent = dict()
-        self.rpkid_CA = dict()
-        self.rpkid_CADetail = dict()
+        work_resourceholderca = tuple(row for row in world.db.irdbd.irdb_resourceholderca 
+                       if row.id == rootd.issuer_id)[0]
+        work_resourceholderca_cer = X509(work_resourceholderca.certificate)
+
+        now = rpki.sundial.now()
+
+        root_resourceholderca_serial = 1
+        root_resourceholderca_key = rpki.x509.RSA.generate()
+        root_resourceholderca_cer = rpki.x509.X509.bpki_self_certify(
+            keypair             = root_resourceholderca_key,
+            subject_name        = rpki.x509.X501DN.from_cn("{} BPKI resource CA".format(root_handle)),
+            serial              = root_resourceholderca_serial,
+            now                 = now,
+            notAfter            = now + rpki.sundial.timedelta(days = 3652))
+        root_resourceholderca_serial += 1
+        root_resourceholderca_crl = rpki.x509.CRL.generate(
+            keypair             = root_resourceholderca_key,
+            issuer              = root_resourceholderca_cer,
+            serial              = 1,
+            thisUpdate          = now,
+            nextUpdate          = now + rpki.sundial.timedelta(hours = 25),
+            revokedCertificates = ())
+
+        root_hostedca_cer = serverca_cer.bpki_certify(
+            keypair             = serverca_key,
+            subject_name        = root_resourceholderca_cer.getSubject(),
+            subject_key         = root_resourceholderca_cer.getPublicKey(),
+            serial              = serverca.next_serial,
+            now                 = now,
+            notAfter            = now + rpki.sundial.timedelta(days = 60),
+            is_ca               = True,
+            pathLenConstraint   = 1)
+        serverca.next_serial += 1
+
+        root_bsc_key    = rpki.x509.RSA.generate()
+        root_bsc_pkcs10 = rpki.x509.PKCS10.create(keypair = root_bsc_key)
+        root_bsc_cer    = root_resourceholderca_cer.bpki_certify(
+            keypair             = root_resourceholderca_key,
+            subject_name        = root_bsc_pkcs10.getSubject(),
+            subject_key         = root_bsc_pkcs10.getPublicKey(),
+            serial              = root_resourceholderca_serial,
+            now                 = now,
+            notAfter            = now + rpki.sundial.timedelta(days = 60),
+            is_ca               = False,
+            pathLenConstraint   = None)
+        root_resourceholderca_serial += 1
+
+        root_repository_bpki_cer = root_resourceholderca_cer.bpki_certify(
+            keypair             = root_resourceholderca_key,
+            subject_name        = serverca_cer.getSubject(),
+            subject_key         = serverca_cer.getPublicKey(),
+            serial              = root_resourceholderca_serial,
+            now                 = now,
+            notAfter            = now + rpki.sundial.timedelta(days = 60),
+            is_ca               = True,
+            pathLenConstraint   = 0)
+        root_resourceholderca_serial += 1
+
+        root_parent_bpki_cer = root_resourceholderca_cer.bpki_certify(
+            keypair             = root_resourceholderca_key,
+            subject_name        = root_resourceholderca_cer.getSubject(),
+            subject_key         = root_resourceholderca_cer.getPublicKey(),
+            serial              = root_resourceholderca_serial,
+            now                 = now,
+            notAfter            = now + rpki.sundial.timedelta(days = 60),
+            is_ca               = True,
+            pathLenConstraint   = 0)
+        root_resourceholderca_serial += 1
+
+        root_child_bpki_cer =  root_resourceholderca_cer.bpki_certify(
+            keypair             = root_resourceholderca_key,
+            subject_name        = work_resourceholderca_cer.getSubject(),
+            subject_key         = work_resourceholderca_cer.getPublicKey(),
+            serial              = root_resourceholderca_serial,
+            now                 = now,
+            notAfter            = now + rpki.sundial.timedelta(days = 60),
+            is_ca               = True,
+            pathLenConstraint   = 0)
+        root_resourceholderca_serial += 1
+
+        if len(world.db.irdbd.irdb_rootd) != 1:
+            raise RuntimeError("Unexpected length for pickled rpki.irdb.models.Rootd")
+
+        if rootd.turtle_ptr_id != self.rootd_turtle_id:
+            raise RuntimeError("Pickled rpki.irdb.models.Rootd does not match Turtle ID")
+
+        if rootd.certificate != rootd_bpki_cer.get_DER():
+            raise RuntimeError("Pickled rootd BPKI certificate does not match pickled SQL")
+
+        if rootd.private_key != rootd_bpki_key.get_DER():
+            raise RuntimeError("Pickled rootd BPKI key does not match pickled SQL")
+
+        rootd_uri = "http://{}:{}/".format(world.cfg.rootd.server_host, world.cfg.rootd.server_port)
+        if rootd_turtle_service_uri != rootd_uri:
+            raise RuntimeError("Pickled Rootd service_uri does not match pickled configuration")
+
+        if serverca_cer != rootd_bpki_ta:
+            raise RuntimeError("Pickled rootd BPKI TA does not match pickled SQL ServerCA")
+
+        if work_resourceholderca_cer != child_bpki_cer:
+            raise RuntimeError("Pickled rootd BPKI child CA does not match pickled SQL")
+
+        # Templates we'll pass to ORM calls in handlers, after filling in ID fields.
+        # For clarity, call the old rpkid entity that was talking to rootd "Work";
+        # call the new one we need to create "Root".  For the most part (entirely?),
+        # we're just creating new objects for "Root": "Work" already has all the
+        # necessary objects, we just need to tweak the values of a few of them.
+
+        self.irdb_ResourceHolderCA = dict(
+            certificate                 = root_resourceholderca_cer,
+            private_key                 = root_resourceholderca_key,
+            latest_crl                  = root_resourceholderca_crl,
+            next_serial                 = root_resourceholderca_serial,
+            next_crl_number             = 2,
+            last_crl_update             = root_resourceholderca_crl.getThisUpdate(),
+            next_crl_update             = root_resourceholderca_crl.getNextUpdate(),
+            handle                      = root_handle,
+        )
+
+        self.irdb_HostedCA = dict(
+            certificate                 = root_hostedca_cer,
+
+            # Foreign keys
+            #issuer                     =
+            #hosted                     =
+        )
+
+        self.irdb_Parent = dict(
+            certificate                 = root_parent_bpki_cer,
+            handle                      = root_handle,
+            ta                          = root_resourceholderca_cer,
+            #service_uri                =
+            parent_handle               = root_handle,
+            child_handle                = root_handle,
+            repository_type             = "none",
+            referrer                    = None,
+            referral_authorization      = None,
+            asn_resources               = "0-4294967295",
+            ipv4_resources              = "0.0.0.0/0",
+            ipv6_resources              = "::/0",
+
+            # Foreign keys
+            #issuer                     =
+        )
+
+        self.irdb_BSC = dict(
+            certificate                 = root_bsc_cer,
+            handle                      = "bsc",
+            pkcs10                      = root_bsc_pkcs10,
+
+            # Foreign keys
+            #issuer                     =
+        )
+
+        self.irdb_Child = dict(
+            certificate                 = root_child_bpki_cer,
+            handle                      = work_resourceholderca.handle,
+            ta                          = work_resourceholderca_cer,
+            valid_until                 = work_resourceholderca_cer.getNotAfter(),
+
+            # Foreign keys
+            #issuer                     =
+        )
+
+        self.irdb_ChildASN = dict(
+            start_as                    = 0,
+            end_as                      = 4294967295,
+
+            # Foreign keys
+            #child                      =
+        )
+
+        self.irdb_ChildNet = dict(
+            start_ip                    = "0.0.0.0",
+            end_ip                      = "255.255.255.255",
+            version                     = 4,
+
+            # Foreign keys
+            #child                      =
+        )
+
+        self.irdb_ChildNet = dict(
+            start_ip                    = "::",
+            end_ip                      = "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            version                     = 6,
+
+            # Foreign keys
+            #child                      =
+        )
+
+        self.irdb_Repository = dict(
+            certificate                 = root_repository_bpki_cer,
+            handle                      = root_handle,
+            ta                          = serverca_cer,
+            client_handle               = root_handle,
+            #service_uri                =
+            #sia_base                   =
+            rrdp_notification_uri      = cfg.get(section = "myrpki",
+                                                 option = "publication_rrdp_notification_uri"),
+
+            # Foreign keys
+            #turtle                     =
+            #issuer                     =
+        )
+
+        self.irdb_Client = dict(
+            #certificate                =
+            handle                      = root_handle,
+            #ta                         =
+            #sia_base                   =
+
+            # Foreign keys
+            #issuer                     =
+        )
+
+        self.pubd_Client = dict(
+            client_handle               = root_handle,
+            #base_uri                   =
+            #bpki_cert                  =
+            bpki_glue                   = None,
+            last_cms_timestamp          = None,
+        )
+
+        self.rpkid_Tenant = dict(
+            tenant_handle               = root_handle,
+            use_hsm                     = False,
+            crl_interval                = cfg.getint(section = "myrpki",
+                                                     option  = "tenant_crl_interval",
+                                                     default = 6 * 60 * 60),
+            regen_margin                = cfg.getint(section = "myrpki",
+                                                     option  = "tenant_regen_margin",
+                                                     default = 14 * 24 * 60 * 60 + 2 * 60),
+            bpki_cert                   = root_hostedca_cer,
+            bpki_glue                   = None,
+        )
+
+        self.rpkid_BSC = dict(
+            bsc_handle                  = "bsc",
+            private_key_id              = root_bsc_key,
+            pkcs10_request              = root_bsc_pkcs10,
+            signing_cert                = root_bsc_cer,
+            signing_cert_crl            = root_resourceholderca_crl,
+
+            # Foreign keys
+            #tenant                      =
+        )
+
+        self.rpkid_Repository = dict(
+            repository_handle           = root_handle,
+            #peer_contact_uri            =
+            bpki_cert                   = root_repository_bpki_cer,
+            bpki_glue                   = None,
+            last_cms_timestamp          = None,
+
+            # Foreign keys
+            #bsc                         =
+            #tenant                      =
+        )
+
+        self.rpkid_Parent = dict(
+            parent_handle               = root_handle,
+            bpki_cert                   = root_parent_bpki_cer,
+            bpki_glue                   = None,
+            #peer_contact_uri           =
+            #sia_base                   =
+            sender_name                 = root_handle,
+            recipient_name              = root_handle,
+            last_cms_timestamp          = None,
+            root_asn_resources          = "0-4294967295",
+            root_ipv4_resources         = "0.0.0.0/0",
+            root_ipv6_resources         = "::/0",
+
+            # Foreign keys
+            #bsc                        =
+            #repository                 =
+            #tenant                     =
+        )
+
+        self.rpkid_CA = dict(
+            last_crl_manifest_number    = rpki_root_last_crl_manifest_number,
+            last_issued_sn              = rpki_root_last_serial,
+            #sia_uri                    =
+            parent_resource_class       = world.cfg.rootd.rpki_class_name,
+
+            # Foreign keys
+            #parent                     =
+        )
+
+        self.rpkid_CADetail = dict(
+            public_key                  = rpki_root_key.get_public(),
+            private_key_id              = rpki_root_key,
+            latest_crl                  = None,
+            crl_published               = None,
+            latest_ca_cert              = rpki_root_cer,
+            manifest_private_key_id     = rpki_root_mft_key,
+            manifest_public_key         = rpki_root_mft_key.get_public(),
+            latest_manifest             = None,
+            manifest_published          = None,
+            state                       = "active",
+            #ca_cert_uri                =
+
+            # Foreign keys
+            #ca                         =
+        )
+
+        self.rpkid_Child = dict(
+            child_handle                = work_resourceholderca.handle,
+            bpki_cert                   = root_child_bpki_cer,
+            bpki_glue                   = None,
+            last_cms_timestamp          = None,
+
+            # Foreign keys
+            #tenant                     =
+            #bsc                        =
+        )
+
+        self.rpkid_ChildCert = dict(
+            cert                        = rpki_work_cer,
+            published                   = None,
+            gski                        = rpki_work_cer.gSKI(),
+
+            # Foreign keys
+            #child                      =
+            #ca_detail                  =
+        )
 
 
 def rpkid_handler(cfg, world, root):
@@ -218,27 +549,29 @@ def rpkid_handler(cfg, world, root):
     for row in world.db.rpkid.self:
         show_handle(row.self_handle)
         rpki.rpkidb.models.Tenant.objects.create(
-            pk                      = row.self_id,
-            tenant_handle           = row.self_handle,
-            use_hsm                 = row.use_hsm,
-            crl_interval            = row.crl_interval,
-            regen_margin            = row.regen_margin,
-            bpki_cert               = X509(row.bpki_cert),
-            bpki_glue               = X509(row.bpki_glue))
+            pk                          = row.self_id,
+            tenant_handle               = row.self_handle,
+            use_hsm                     = row.use_hsm,
+            crl_interval                = row.crl_interval,
+            regen_margin                = row.regen_margin,
+            bpki_cert                   = X509(row.bpki_cert),
+            bpki_glue                   = X509(row.bpki_glue))
 
     show_model("rpkid", "bsc")
     for row in world.db.rpkid.bsc:
         show_handle(row.bsc_handle)
         tenant = rpki.rpkidb.models.Tenant.objects.get(pk = row.self_id)
         rpki.rpkidb.models.BSC.objects.create(
-            pk                      = row.bsc_id,
-            bsc_handle              = row.bsc_handle,
-            private_key_id          = RSA(row.private_key_id),
-            pkcs10_request          = PKCS10(row.pkcs10_request),
-            hash_alg                = row.hash_alg or "sha256",
-            signing_cert            = X509(row.signing_cert),
-            signing_cert_crl        = CRL(row.signing_cert_crl),
-            tenant                  = tenant)
+            pk                          = row.bsc_id,
+            bsc_handle                  = row.bsc_handle,
+            private_key_id              = RSA(row.private_key_id),
+            pkcs10_request              = PKCS10(row.pkcs10_request),
+            hash_alg                    = row.hash_alg or "sha256",
+            signing_cert                = X509(row.signing_cert),
+            signing_cert_crl            = CRL(row.signing_cert_crl),
+            tenant                      = tenant)
+
+    rrdp_notification_uri = cfg.get(section = "myrpki", option = "publication_rrdp_notification_uri")
 
     show_model("rpkid", "repository")
     for row in world.db.rpkid.repository:
@@ -247,14 +580,15 @@ def rpkid_handler(cfg, world, root):
         bsc    = rpki.rpkidb.models.BSC.objects.get(   pk     = row.bsc_id,
                                                        tenant = row.self_id)
         rpki.rpkidb.models.Repository.objects.create(
-            pk                      = row.repository_id,
-            repository_handle       = row.repository_handle,
-            peer_contact_uri        = row.peer_contact_uri,
-            bpki_cert               = X509(row.bpki_cert),
-            bpki_glue               = X509(row.bpki_glue),
-            last_cms_timestamp      = row.last_cms_timestamp,
-            bsc                     = bsc,
-            tenant                  = tenant)
+            pk                          = row.repository_id,
+            repository_handle           = row.repository_handle,
+            peer_contact_uri            = row.peer_contact_uri,
+            rrdp_notification_uri       = rrdp_notification_uri,
+            bpki_cert                   = X509(row.bpki_cert),
+            bpki_glue                   = X509(row.bpki_glue),
+            last_cms_timestamp          = row.last_cms_timestamp,
+            bsc                         = bsc,
+            tenant                      = tenant)
 
     show_model("rpkid", "parent")
     for row in world.db.rpkid.parent:
@@ -265,18 +599,18 @@ def rpkid_handler(cfg, world, root):
         repository = rpki.rpkidb.models.Repository.objects.get(pk     = row.repository_id,
                                                                tenant = row.self_id)
         rpki.rpkidb.models.Parent.objects.create(
-            pk                      = row.parent_id,
-            parent_handle           = row.parent_handle,
-            bpki_cert               = X509(row.bpki_cms_cert),
-            bpki_glue               = X509(row.bpki_cms_glue),
-            peer_contact_uri        = row.peer_contact_uri,
-            sia_base                = row.sia_base,
-            sender_name             = row.sender_name,
-            recipient_name          = row.recipient_name,
-            last_cms_timestamp      = row.last_cms_timestamp,
-            bsc                     = bsc,
-            repository              = repository,
-            tenant                  = tenant)
+            pk                          = row.parent_id,
+            parent_handle               = row.parent_handle,
+            bpki_cert                   = X509(row.bpki_cms_cert),
+            bpki_glue                   = X509(row.bpki_cms_glue),
+            peer_contact_uri            = row.peer_contact_uri,
+            sia_base                    = row.sia_base,
+            sender_name                 = row.sender_name,
+            recipient_name              = row.recipient_name,
+            last_cms_timestamp          = row.last_cms_timestamp,
+            bsc                         = bsc,
+            repository                  = repository,
+            tenant                      = tenant)
 
     show_model("rpkid", "ca")
     for row in world.db.rpkid.ca:
@@ -284,30 +618,30 @@ def rpkid_handler(cfg, world, root):
         last_crl_mft_number = max(row.last_crl_sn,
                                   row.last_manifest_sn)
         rpki.rpkidb.models.CA.objects.create(
-            pk                      = row.ca_id,
-            last_crl_manifest_number= last_crl_mft_number,
-            last_issued_sn          = row.last_issued_sn,
-            sia_uri                 = row.sia_uri,
-            parent_resource_class   = row.parent_resource_class,
-            parent                  = parent)
+            pk                          = row.ca_id,
+            last_crl_manifest_number    = last_crl_mft_number,
+            last_issued_sn              = row.last_issued_sn,
+            sia_uri                     = row.sia_uri,
+            parent_resource_class       = row.parent_resource_class,
+            parent                      = parent)
 
     show_model("rpkid", "ca_detail")
     for row in world.db.rpkid.ca_detail:
         ca = rpki.rpkidb.models.CA.objects.get(pk = row.ca_id)
         rpki.rpkidb.models.CADetail.objects.create(
-            pk                      = row.ca_detail_id,
-            public_key              = RSA(row.public_key),
-            private_key_id          = RSA(row.private_key_id),
-            latest_crl              = CRL(row.latest_crl),
-            crl_published           = row.crl_published,
-            latest_ca_cert          = X509(row.latest_ca_cert),
-            manifest_private_key_id = RSA(row.manifest_private_key_id),
-            manifest_public_key     = RSA(row.manifest_public_key),
-            latest_manifest         = MFT(row.latest_manifest),
-            manifest_published      = row.manifest_published,
-            state                   = row.state,
-            ca_cert_uri             = row.ca_cert_uri,
-            ca                      = ca)
+            pk                          = row.ca_detail_id,
+            public_key                  = RSA(row.public_key),
+            private_key_id              = RSA(row.private_key_id),
+            latest_crl                  = CRL(row.latest_crl),
+            crl_published               = row.crl_published,
+            latest_ca_cert              = X509(row.latest_ca_cert),
+            manifest_private_key_id     = RSA(row.manifest_private_key_id),
+            manifest_public_key         = RSA(row.manifest_public_key),
+            latest_manifest             = MFT(row.latest_manifest),
+            manifest_published          = row.manifest_published,
+            state                       = row.state,
+            ca_cert_uri                 = row.ca_cert_uri,
+            ca                          = ca)
 
     show_model("rpkid", "child")
     for row in world.db.rpkid.child:
@@ -316,35 +650,35 @@ def rpkid_handler(cfg, world, root):
         bsc        = rpki.rpkidb.models.BSC.objects.get(   pk     = row.bsc_id,
                                                            tenant = row.self_id)
         rpki.rpkidb.models.Child.objects.create(
-            pk                      = row.child_id,
-            child_handle            = row.child_handle,
-            bpki_cert               = X509(row.bpki_cert),
-            bpki_glue               = X509(row.bpki_glue),
-            last_cms_timestamp      = row.last_cms_timestamp,
-            tenant                  = tenant,
-            bsc                     = bsc)
+            pk                          = row.child_id,
+            child_handle                = row.child_handle,
+            bpki_cert                   = X509(row.bpki_cert),
+            bpki_glue                   = X509(row.bpki_glue),
+            last_cms_timestamp          = row.last_cms_timestamp,
+            tenant                      = tenant,
+            bsc                         = bsc)
 
     show_model("rpkid", "child_cert")
     for row in world.db.rpkid.child_cert:
         child     = rpki.rpkidb.models.Child.objects.get(   pk = row.child_id)
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
         rpki.rpkidb.models.ChildCert.objects.create(
-            pk                      = row.child_cert_id,
-            cert                    = X509(row.cert),
-            published               = row.published,
-            gski                    = SKI_to_gSKI(row.ski),
-            child                   = child,
-            ca_detail               = ca_detail)
+            pk                          = row.child_cert_id,
+            cert                        = X509(row.cert),
+            published                   = row.published,
+            gski                        = SKI_to_gSKI(row.ski),
+            child                       = child,
+            ca_detail                   = ca_detail)
 
     show_model("rpkid", "revoked_cert")
     for row in world.db.rpkid.revoked_cert:
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
         rpki.rpkidb.models.RevokedCert.objects.create(
-            pk                      = row.revoked_cert_id,
-            serial                  = row.serial,
-            revoked                 = row.revoked,
-            expires                 = row.expires,
-            ca_detail               = ca_detail)
+            pk                          = row.revoked_cert_id,
+            serial                      = row.serial,
+            revoked                     = row.revoked,
+            expires                     = row.expires,
+            ca_detail                   = ca_detail)
 
     show_model("rpkid", "roa")
     for row in world.db.rpkid.roa:
@@ -357,40 +691,40 @@ def rpkid_handler(cfg, world, root):
         ipv4 = ",".join(p for v, p in prefixes if v == 4) or None
         ipv6 = ",".join(p for v, p in prefixes if v == 6) or None
         rpki.rpkidb.models.ROA.objects.create(
-            pk                      = row.roa_id,
-            asn                     = row.asn,
-            ipv4                    = ipv4,
-            ipv6                    = ipv6,
-            cert                    = X509(row.cert),
-            roa                     = ROA(row.roa),
-            published               = row.published,
-            tenant                  = tenant,
-            ca_detail               = ca_detail)
+            pk                          = row.roa_id,
+            asn                         = row.asn,
+            ipv4                        = ipv4,
+            ipv6                        = ipv6,
+            cert                        = X509(row.cert),
+            roa                         = ROA(row.roa),
+            published                   = row.published,
+            tenant                      = tenant,
+            ca_detail                   = ca_detail)
 
     show_model("rpkid", "ghostbuster")
     for row in world.db.rpkid.ghostbuster:
         tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
         rpki.rpkidb.models.Ghostbuster.objects.create(
-            pk                      = row.ghostbuster_id,
-            vcard                   = row.vcard,
-            cert                    = X509(row.cert),
-            ghostbuster             = GBR(row.ghostbuster),
-            published               = row.published,
-            tenant                  = tenant,
-            ca_detail               = ca_detail)
+            pk                          = row.ghostbuster_id,
+            vcard                       = row.vcard,
+            cert                        = X509(row.cert),
+            ghostbuster                 = GBR(row.ghostbuster),
+            published                   = row.published,
+            tenant                      = tenant,
+            ca_detail                   = ca_detail)
 
     show_model("rpkid", "ee_cert")
     for row in world.db.rpkid.ee_cert:
         tenant    = rpki.rpkidb.models.Tenant.objects.get(  pk = row.self_id)
         ca_detail = rpki.rpkidb.models.CADetail.objects.get(pk = row.ca_detail_id)
         rpki.rpkidb.models.EECertificate.objects.create(
-            pk                      = row.ee_cert_id,
-            gski                    = SKI_to_gSKI(row.ski),
-            cert                    = X509(row.cert),
-            published               = row.published,
-            tenant                  = tenant,
-            ca_detail               = ca_detail)
+            pk                          = row.ee_cert_id,
+            gski                        = SKI_to_gSKI(row.ski),
+            cert                        = X509(row.cert),
+            published                   = row.published,
+            tenant                      = tenant,
+            ca_detail                   = ca_detail)
 
 
 def pubd_handler(cfg, world, root):
@@ -403,12 +737,12 @@ def pubd_handler(cfg, world, root):
     for row in world.db.pubd.client:
         show_handle(row.client_handle)
         rpki.pubdb.models.Client.objects.create(
-            pk                  = row.client_id,
-            client_handle       = row.client_handle,
-            base_uri            = row.base_uri,
-            bpki_cert           = X509(row.bpki_cert),
-            bpki_glue           = X509(row.bpki_glue),
-            last_cms_timestamp  = row.last_cms_timestamp)
+            pk                          = row.client_id,
+            client_handle               = row.client_handle,
+            base_uri                    = row.base_uri,
+            bpki_cert                   = X509(row.bpki_cert),
+            bpki_glue                   = X509(row.bpki_glue),
+            last_cms_timestamp          = row.last_cms_timestamp)
 
 
 def irdb_handler(cfg, world, root):
@@ -423,120 +757,120 @@ def irdb_handler(cfg, world, root):
     show_model("irdb", "ServerCA")
     for row in world.db.irdbd.irdb_serverca:
         rpki.irdb.models.ServerCA.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            private_key         = RSA(row.private_key),
-            latest_crl          = CRL(row.latest_crl),
-            next_serial         = row.next_serial,
-            next_crl_number     = row.next_crl_number,
-            last_crl_update     = row.last_crl_update,
-            next_crl_update     = row.next_crl_update)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            private_key                 = RSA(row.private_key),
+            latest_crl                  = CRL(row.latest_crl),
+            next_serial                 = row.next_serial,
+            next_crl_number             = row.next_crl_number,
+            last_crl_update             = row.last_crl_update,
+            next_crl_update             = row.next_crl_update)
 
     show_model("irdb", "ResourceHolderCA")
     for row in world.db.irdbd.irdb_resourceholderca:
         show_handle(row.handle)
         rpki.irdb.models.ResourceHolderCA.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            private_key         = RSA(row.private_key),
-            latest_crl          = CRL(row.latest_crl),
-            next_serial         = row.next_serial,
-            next_crl_number     = row.next_crl_number,
-            last_crl_update     = row.last_crl_update,
-            next_crl_update     = row.next_crl_update,
-            handle              = row.handle)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            private_key                 = RSA(row.private_key),
+            latest_crl                  = CRL(row.latest_crl),
+            next_serial                 = row.next_serial,
+            next_crl_number             = row.next_crl_number,
+            last_crl_update             = row.last_crl_update,
+            next_crl_update             = row.next_crl_update,
+            handle                      = row.handle)
 
     show_model("irdb", "HostedCA")
     for row in world.db.irdbd.irdb_hostedca:
         issuer = rpki.irdb.models.ServerCA.objects.get(        pk = row.issuer_id)
         hosted = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.hosted_id)
         rpki.irdb.models.HostedCA.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            issuer              = issuer,
-            hosted              = hosted)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            issuer                      = issuer,
+            hosted                      = hosted)
 
     show_model("irdb", "ServerRevocation")
     for row in world.db.irdbd.irdb_serverrevocation:
         issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ServerRevocation.objects.create(
-            pk                  = row.id,
-            serial              = row.serial,
-            revoked             = row.revoked,
-            expires             = row.expires,
-            issuer              = issuer)
+            pk                          = row.id,
+            serial                      = row.serial,
+            revoked                     = row.revoked,
+            expires                     = row.expires,
+            issuer                      = issuer)
 
     show_model("irdb", "ResourceHolderRevocation")
     for row in world.db.irdbd.irdb_resourceholderrevocation:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ResourceHolderRevocation.objects.create(
-            pk                  = row.id,
-            serial              = row.serial,
-            revoked             = row.revoked,
-            expires             = row.expires,
-            issuer              = issuer)
+            pk                          = row.id,
+            serial                      = row.serial,
+            revoked                     = row.revoked,
+            expires                     = row.expires,
+            issuer                      = issuer)
 
     show_model("irdb", "ServerEE")
     for row in world.db.irdbd.irdb_serveree:
         issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ServerEE.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            private_key         = RSA(row.private_key),
-            purpose             = row.purpose,
-            issuer              = issuer)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            private_key                 = RSA(row.private_key),
+            purpose                     = row.purpose,
+            issuer                      = issuer)
 
     show_model("irdb", "Referral")
     for row in world.db.irdbd.irdb_referral:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Referral.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            private_key         = RSA(row.private_key),
-            issuer              = issuer)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            private_key                 = RSA(row.private_key),
+            issuer                      = issuer)
 
     show_model("irdb", "BSC")
     for row in world.db.irdbd.irdb_bsc:
         show_handle(row.handle)
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.BSC.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            handle              = row.handle,
-            pkcs10              = PKCS10(row.pkcs10),
-            issuer              = issuer)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            handle                      = row.handle,
+            pkcs10                      = PKCS10(row.pkcs10),
+            issuer                      = issuer)
 
     show_model("irdb", "Child")
     for row in world.db.irdbd.irdb_child:
         show_handle(row.handle)
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Child.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            handle              = row.handle,
-            ta                  = X509(row.ta),
-            valid_until         = row.valid_until,
-            name                = row.name,
-            issuer              = issuer)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            handle                      = row.handle,
+            ta                          = X509(row.ta),
+            valid_until                 = row.valid_until,
+            name                        = row.name,
+            issuer                      = issuer)
 
     show_model("irdb", "ChildASN")
     for row in world.db.irdbd.irdb_childasn:
         child = rpki.irdb.models.Child.objects.get(pk = row.child_id)
         rpki.irdb.models.ChildASN.objects.create(
-            pk                  = row.id,
-            start_as            = row.start_as,
-            end_as              = row.end_as,
-            child               = child)
+            pk                          = row.id,
+            start_as                    = row.start_as,
+            end_as                      = row.end_as,
+            child                       = child)
 
     show_model("irdb", "ChildNet")
     for row in world.db.irdbd.irdb_childnet:
         child = rpki.irdb.models.Child.objects.get(pk = row.child_id)
         rpki.irdb.models.ChildNet.objects.create(
-            pk                  = row.id,
-            start_ip            = row.start_ip,
-            end_ip              = row.end_ip,
-            version             = row.version,
-            child               = child)
+            pk                          = row.id,
+            start_ip                    = row.start_ip,
+            end_ip                      = row.end_ip,
+            version                     = row.version,
+            child                       = child)
 
     # We'd like to consolidate Turtle into Parent now that Rootd is gone.
     # Well, guess what, due to the magic of multi-table inheritance,
@@ -552,36 +886,36 @@ def irdb_handler(cfg, world, root):
         show_handle(row.handle)
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Parent.objects.create(
-            pk                  = row.turtle_ptr_id,
-            service_uri         = turtle_map[row.turtle_ptr_id].service_uri,
-            certificate         = X509(row.certificate),
-            handle              = row.handle,
-            ta                  = X509(row.ta),
-            parent_handle       = row.parent_handle,
-            child_handle        = row.child_handle,
-            repository_type     = row.repository_type,
-            referrer            = row.referrer,
-            referral_authorization = REF(row.referral_authorization),
-            issuer              = issuer)
+            pk                          = row.turtle_ptr_id,
+            service_uri                 = turtle_map[row.turtle_ptr_id].service_uri,
+            certificate                 = X509(row.certificate),
+            handle                      = row.handle,
+            ta                          = X509(row.ta),
+            parent_handle               = row.parent_handle,
+            child_handle                = row.child_handle,
+            repository_type             = row.repository_type,
+            referrer                    = row.referrer,
+            referral_authorization      = REF(row.referral_authorization),
+            issuer                      = issuer)
 
     show_model("irdb", "ROARequest")
     for row in world.db.irdbd.irdb_roarequest:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.ROARequest.objects.create(
-            pk                  = row.id,
-            asn                 = row.asn,
-            issuer              = issuer)
+            pk                          = row.id,
+            asn                         = row.asn,
+            issuer                      = issuer)
 
     show_model("irdb", "ROARequestPrefix")
     for row in world.db.irdbd.irdb_roarequestprefix:
         roa_request = rpki.irdb.models.ROARequest.objects.get(pk = row.roa_request_id)
         rpki.irdb.models.ROARequestPrefix.objects.create(
-            pk                  = row.id,
-            version             = row.version,
-            prefix              = row.prefix,
-            prefixlen           = row.prefixlen,
-            max_prefixlen       = row.max_prefixlen,
-            roa_request         = roa_request)
+            pk                          = row.id,
+            version                     = row.version,
+            prefix                      = row.prefix,
+            prefixlen                   = row.prefixlen,
+            max_prefixlen               = row.max_prefixlen,
+            roa_request                 = roa_request)
 
     show_model("irdb", "Ghostbuster")
     for row in world.db.irdbd.irdb_ghostbusterrequest:
@@ -591,44 +925,44 @@ def irdb_handler(cfg, world, root):
         except rpki.irdb.models.Parent.DoesNotExist:
             parent = None
         rpki.irdb.models.GhostbusterRequest.objects.create(
-            pk                  = row.id,
-            vcard               = row.vcard,
-            parent              = parent,
-            issuer              = issuer)
+            pk                          = row.id,
+            vcard                       = row.vcard,
+            parent                      = parent,
+            issuer                      = issuer)
 
     show_model("irdb", "EECertificateRequest")
     for row in world.db.irdbd.irdb_eecertificaterequest:
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.EECertificateRequest.objects.create(
-            pk                  = row.id,
-            valid_until         = row.valid_until,
-            pkcs10              = PKCS10(row.pkcs10),
-            gski                = row.gski,
-            cn                  = row.cn,
-            sn                  = row.sn,
-            eku                 = row.eku,
-            issuer              = issuer)
+            pk                          = row.id,
+            valid_until                 = row.valid_until,
+            pkcs10                      = PKCS10(row.pkcs10),
+            gski                        = row.gski,
+            cn                          = row.cn,
+            sn                          = row.sn,
+            eku                         = row.eku,
+            issuer                      = issuer)
 
     show_model("irdb", "EECertificateRequestASN")
     for row in world.db.irdbd.irdb_eecertificaterequestasn:
         ee_certificate_request = rpki.irdb.models.EECertificateRequest.objects.get(
             pk = row.ee_certificate_request_id)
         rpki.irdb.models.EECertificateRequestASN.objects.create(
-            pk                  = row.id,
-            start_as            = row.start_as,
-            end_as              = row.end_as,
-            ee_certificate_request = ee_certificate_request)
+            pk                          = row.id,
+            start_as                    = row.start_as,
+            end_as                      = row.end_as,
+            ee_certificate_request      = ee_certificate_request)
 
     show_model("irdb", "EECertificateRequestNet")
     for row in world.db.irdbd.irdb_eecertificaterequestnet:
         ee_certificate_request = rpki.irdb.models.EECertificateRequest.objects.get(
             pk = row.ee_certificate_request_id)
         rpki.irdb.models.EECertificateRequestNet.objects.create(
-            pk                  = row.id,
-            start_ip            = row.start_ip,
-            end_ip              = row.end_ip,
-            version             = row.version,
-            ee_certificate_request = ee_certificate_request)
+            pk                          = row.id,
+            start_ip                    = row.start_ip,
+            end_ip                      = row.end_ip,
+            version                     = row.version,
+            ee_certificate_request      = ee_certificate_request)
 
     # Turtle without a Parent can happen where the old database had a Rootd.
     # We can create an irdb parent, but only handle_rpkid() (or rpkid itself)
@@ -653,31 +987,31 @@ def irdb_handler(cfg, world, root):
             print "++ Need to create Parent to replace Rootd"
             continue # XXX
             parent = rpki.irdb.models.Parent.objects.create(
-                pk              = row.turtle_id,
-                service_uri     = root.rootd_turtle_service_uri)
+                pk                      = row.turtle_id,
+                service_uri             = root.rootd_turtle_service_uri)
         rpki.irdb.models.Repository.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            handle              = row.handle,
-            ta                  = X509(row.ta),
-            client_handle       = row.client_handle,
-            service_uri         = row.service_uri,
-            sia_base            = row.sia_base,
-            rrdp_notification_uri = rrdp_notification_uri,
-            turtle              = parent,
-            issuer              = issuer)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            handle                      = row.handle,
+            ta                          = X509(row.ta),
+            client_handle               = row.client_handle,
+            service_uri                 = row.service_uri,
+            sia_base                    = row.sia_base,
+            rrdp_notification_uri       = rrdp_notification_uri,
+            turtle                      = parent,
+            issuer                      = issuer)
 
     show_model("irdb", "Client")
     for row in world.db.irdbd.irdb_client:
         show_handle(row.handle)
         issuer = rpki.irdb.models.ServerCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Client.objects.create(
-            pk                  = row.id,
-            certificate         = X509(row.certificate),
-            handle              = row.handle,
-            ta                  = X509(row.ta),
-            sia_base            = row.sia_base,
-            issuer              = issuer)
+            pk                          = row.id,
+            certificate                 = X509(row.certificate),
+            handle                      = row.handle,
+            ta                          = X509(row.ta),
+            sia_base                    = row.sia_base,
+            issuer                      = issuer)
 
 
 if __name__ == "__main__":

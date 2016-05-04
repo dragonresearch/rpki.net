@@ -512,7 +512,7 @@ class Root(object):
             rrdp_notification_uri       = rrdp_notification_uri,
 
             # Foreign keys
-            #turtle                     =
+            #parent                     =
             #issuer                     =
         )
 
@@ -1045,13 +1045,6 @@ def irdb_handler(cfg, args, world, root, fixuri):
             version                     = row.version,
             child                       = child)
 
-    # We'd like to consolidate Turtle into Parent now that Rootd is gone.
-    # Well, guess what, due to the magic of multi-table inheritance,
-    # we can write this code as if we had already performed that merge,
-    # and the code should work either way.
-    #
-    # "Django is amazing when it's not terrifying."
-
     turtle_map = dict((row.id, row) for row in world.db.irdbd.irdb_turtle)
 
     show_model("irdb", "Parent")
@@ -1174,7 +1167,7 @@ def irdb_handler(cfg, args, world, root, fixuri):
             service_uri                 = fixuri.pubd(row.service_uri),
             sia_base                    = row.sia_base,
             rrdp_notification_uri       = rrdp_notification_uri,
-            turtle                      = parent,
+            parent                      = parent,
             issuer                      = issuer)
 
     show_model("irdb", "Client")
@@ -1216,7 +1209,7 @@ def irdb_handler(cfg, args, world, root, fixuri):
             child = child))
         repository = rpki.irdb.models.Repository.objects.create(**dict(
             root.irdb_Repository,
-            turtle = parent,
+            parent = parent,
             issuer = resourceholderca))
         client = rpki.irdb.models.Client.objects.create(**dict(
             root.irdb_Client,

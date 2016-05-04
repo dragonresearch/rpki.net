@@ -863,24 +863,24 @@ class Zookeeper(object):
         if parent_handle is not None:
             self.log("Explicit parent_handle given")
             try:
-                turtle = self.resource_ca.parents.get(handle = parent_handle)
+                parent = self.resource_ca.parents.get(handle = parent_handle)
             except rpki.irdb.models.Parent.DoesNotExist:
                 self.log("Could not find parent %r in our database" % parent_handle)
                 raise CouldntFindRepoParent
 
         else:
             # In theory this could be rewritten using an .exists() filter.
-            turtles = []
+            parents = []
             for parent in self.resource_ca.parents.all():
                 try:
                     _ = parent.repository               # pylint: disable=W0612
                 except rpki.irdb.models.Repository.DoesNotExist:
-                    turtles.append(parent)
-            if len(turtles) != 1:
+                    parents.append(parent)
+            if len(parents) != 1:
                 self.log("No explicit parent_handle given and unable to guess")
                 raise CouldntFindRepoParent
-            turtle = turtles[0]
-            parent_handle = turtle.handle
+            parent = parents[0]
+            parent_handle = parent.handle
             self.log("No explicit parent_handle given, guessing parent {}".format(parent_handle))
 
         rpki.irdb.models.Repository.objects.get_or_certify(
@@ -891,7 +891,7 @@ class Zookeeper(object):
             sia_base              = x.get("sia_base"),
             rrdp_notification_uri = x.get("rrdp_notification_uri"),
             ta                    = rpki.x509.X509(Base64 = x.findtext(tag_oob_repository_bpki_ta)),
-            turtle                = turtle)
+            parent                = parent)
 
 
     @django.db.transaction.atomic

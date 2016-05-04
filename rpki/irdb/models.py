@@ -342,9 +342,6 @@ class Referral(EECertificate):
     def subject_name(self):
         return rpki.x509.X501DN.from_cn("%s BPKI Referral EE" % self.issuer.handle)
 
-class Turtle(django.db.models.Model):
-    service_uri = django.db.models.CharField(max_length = 255)
-
 class BSC(Certificate):
     issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "bscs")
     handle = HandleField()
@@ -437,8 +434,9 @@ class ChildNet(ResourceSetNet):
     class Meta:
         unique_together = ("child", "start_ip", "end_ip", "version")
 
-class Parent(CrossCertification, Turtle):
+class Parent(CrossCertification):
     issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "parents")
+    service_uri = django.db.models.CharField(max_length = 255)
     parent_handle = HandleField()
     child_handle  = HandleField()
     repository_type = EnumField(choices = ("none", "offer", "referral"))
@@ -539,7 +537,7 @@ class Repository(CrossCertification):
     service_uri = django.db.models.CharField(max_length = 255)
     sia_base = django.db.models.TextField()
     rrdp_notification_uri = django.db.models.TextField(null = True)
-    turtle = django.db.models.OneToOneField(Turtle, related_name = "repository")
+    parent = django.db.models.OneToOneField(Parent, related_name = "repository")
 
     # This shouldn't be necessary
     class Meta:

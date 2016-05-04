@@ -21,6 +21,7 @@ import cPickle
 import tempfile
 import datetime
 import argparse
+import urlparse
 import subprocess
 
 import rpki.config
@@ -77,6 +78,50 @@ class LazyDict(object):
         if isinstance(thing, tuple):
             return tuple(cls._insinuate(v) for v in thing)
         return thing
+
+
+class FixURI(object):
+    """
+    Clean up URIs.  Mostly this means adjust port numbers as necessary
+    to accomodate differences between pickled and current rpki.conf.
+    As a sanity check, we also check the supplied URIs against the pickled
+    configuration, to make sure things aren't too out of whack.
+    """
+
+    def __init__(self, cfg, args, world):
+        fmt = "{host}:{port}".format
+        self.old_rpkid = fmt(host = world.cfg.rpkid.server_host,
+                             port = world.cfg.rpkid.server_port)
+        self.new_rpkid = fmt(host = cfg.get(section = "rpkid", option  = "server-host"),
+                             port = cfg.get(section = "rpkid", option  = "server-port"))
+        self.old_pubd  = fmt(host = world.cfg.pubd.server_host,
+                             port = world.cfg.pubd.server_port)
+        self.new_pubd  = fmt(host = cfg.get(section = "pubd", option  = "server-host"),
+                             port = cfg.get(section = "pubd", option  = "server-port"))
+        self.new_irdbd = fmt(host = world.cfg.irdbd.server_host,
+                             port = world.cfg.irdbd.server_port)
+        self.new_irdbd = fmt(host = cfg.get(section = "irdbd", option  = "server-host"),
+                             port = cfg.get(section = "irdbd", option  = "server-port"))
+        self.old_rsyncd = world.cfg.myrpki.publication_rsync_server
+        self.new_rsyncd = cfg.get(section = "myrpki",
+                                  option = "publication_rsync_server")
+
+    def _fix(self, uri, scheme, old_netloc, new_netloc):
+        u = urlparse.urlparse(uri)
+        uri = urlparse.urlunparse(u)
+        old = urlparse.urlunparse((scheme, old_netloc) + u[2:])
+        new = urlparse.urlunparse((scheme, new_netloc) + u[2:])
+        if (u.scheme or u.netloc) and uri != old:
+            print "+ Oops. Raw:", uri
+            print "+       Old:", old
+            print "+       New:", new
+            raise RuntimeError("Supplied URI does not match old configuration")
+        return new
+
+    def rpkid(self, uri):  return self._fix(uri, "http",  self.old_rpkid,  self.new_rpkid)
+    def pubd(self, uri):   return self._fix(uri, "http",  self.old_pubd,   self.new_pubd)
+    def irdbd(self, uri):  return self._fix(uri, "http",  self.old_irdbd,  self.new_irdbd)
+    def rsyncd(self, uri): return self._fix(uri, "rsync", self.old_rsyncd, self.new_rsyncd)
 
 
 # None-safe wrappers for ASN.1 constructors.
@@ -138,7 +183,9 @@ def main():
     if xzcat.wait() != 0:
         sys.exit("XZ unpickling failed with code {}".format(xzcat.returncode))
 
-    root = Root(cfg, args, world)
+    fixuri = FixURI(cfg, args, world)
+
+    root = Root(cfg, args, world, fixuri)
 
     if root.enabled:
         print "Pickled configuration included rootd"
@@ -151,7 +198,7 @@ def main():
         if not cfg_to_Bool(enabled):
             continue
         if os.fork() == 0:
-            handler(cfg, args, world, root)
+            handler(cfg, args, world, root, fixuri)
             sys.exit()
         else:
             pid, status = os.wait()
@@ -163,7 +210,7 @@ def main():
 
 class Root(object):
 
-    def __init__(self, cfg, args, world):
+    def __init__(self, cfg, args, world, fixuri):
 
         self.enabled = cfg_to_Bool(world.cfg.myrpki.run_rootd) and not args.no_rootd_processing
 
@@ -221,6 +268,13 @@ class Root(object):
         work_resourceholderca = tuple(row for row in world.db.irdbd.irdb_resourceholderca
                        if row.id == rootd.issuer_id)[0]
         work_resourceholderca_cer = X509(work_resourceholderca.certificate)
+
+        work_tenant = tuple(row for row in world.db.rpkid.self
+                            if row.self_handle == work_resourceholderca.handle)[0]
+
+        work_parent = tuple(row for row in world.db.rpkid.parent
+                            if row.parent_handle == work_resourceholderca.handle
+                            and row.self_id == work_tenant.self_id)[0]
 
         now = rpki.sundial.now()
 
@@ -309,24 +363,27 @@ class Root(object):
             pathLenConstraint   = 0)
         serverca.next_serial += 1
 
-        root_up_down_uri = "http://{host}:{port}/up-down/{root}/{work}".format(
-            host = cfg.get(section = "rpkid", option  = "server-host"),
-            port = cfg.get(section = "rpkid", option  = "server-port"),
+        root_up_down_path = "/up-down/{root}/{work}".format(
             root = root_handle,
             work = work_resourceholderca.handle)
 
-        root_publication_control_uri = "http://{host}:{port}/client/{root}".format(
-            host = cfg.get(section = "pubd", option  = "server-host"),
-            port = cfg.get(section = "pubd", option  = "server-port"),
-            root = root_handle)
+        root_up_down_uri = fixuri.rpkid(root_up_down_path)
 
-        root_rsync_uri = "rsync://{server}/{module}/{handle}/".format(
-            server = cfg.get(section = "myrpki", option = "publication_rsync_server"),
+        root_publication_control_uri = fixuri.pubd("/client/{root}".format(
+            root = root_handle))
+
+        root_rsync_uri = fixuri.rsyncd("/{module}/{handle}/".format(
             module = cfg.get(section = "myrpki", option = "publication_rsync_module"),
-            handle = root_handle)
+            handle = root_handle))
 
         rrdp_notification_uri = cfg.get(section = "myrpki",
                                         option = "publication_rrdp_notification_uri")
+
+        rootd_uri = "http://{host}:{port}/".format(
+            host = world.cfg.rootd.server_host, 
+            port = world.cfg.rootd.server_port)
+
+        # Some sanity checks
 
         if len(world.db.irdbd.irdb_rootd) != 1:
             raise RuntimeError("Unexpected length for pickled rpki.irdb.models.Rootd")
@@ -340,8 +397,10 @@ class Root(object):
         if rootd.private_key != rootd_bpki_key.get_DER():
             raise RuntimeError("Pickled rootd BPKI key does not match pickled SQL")
 
-        rootd_uri = "http://{}:{}/".format(world.cfg.rootd.server_host, world.cfg.rootd.server_port)
         if rootd_turtle_service_uri != rootd_uri:
+            raise RuntimeError("Pickled Rootd service_uri does not match pickled configuration")
+
+        if work_parent.peer_contact_uri != rootd_uri:
             raise RuntimeError("Pickled Rootd service_uri does not match pickled configuration")
 
         if serverca_cer != rootd_bpki_ta:
@@ -350,11 +409,16 @@ class Root(object):
         if work_resourceholderca_cer != child_bpki_cer:
             raise RuntimeError("Pickled rootd BPKI child CA does not match pickled SQL")
 
-        # Templates we'll pass to ORM calls in handlers, after filling in ID fields.
-        # For clarity, call the old rpkid entity that was talking to rootd "Work";
-        # call the new one we need to create "Root".  For the most part (entirely?),
-        # we're just creating new objects for "Root": "Work" already has all the
-        # necessary objects, we just need to tweak the values of a few of them.
+        # Adjust saved working CA's parent object to point at new root.
+        # We supply just the path portion of the URI here, to avoid confusing fixuri.rpkid() later.
+
+        work_parent.parent_handle = root_handle
+        work_parent.recipient_name = root_handle
+        work_parent.peer_contact_uri = root_up_down_path
+        work_parent.bpki_cms_cert = root_hostedca_cer.get_DER()
+
+        # Templates we'll pass to ORM .objects.create() calls in handlers,
+        # after filling in foreign key fields as needed.
 
         self.irdb_ResourceHolderCA = dict(
             certificate                 = root_resourceholderca_cer,
@@ -595,7 +659,7 @@ def reset_sequence(*app_labels):
                 cur.execute(cmd)
 
 
-def rpkid_handler(cfg, args, world, root):
+def rpkid_handler(cfg, args, world, root, fixuri):
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.rpkid")
     import django
     django.setup()
@@ -638,7 +702,7 @@ def rpkid_handler(cfg, args, world, root):
         rpki.rpkidb.models.Repository.objects.create(
             pk                          = row.repository_id,
             repository_handle           = row.repository_handle,
-            peer_contact_uri            = row.peer_contact_uri,
+            peer_contact_uri            = fixuri.pubd(row.peer_contact_uri),
             rrdp_notification_uri       = rrdp_notification_uri,
             bpki_cert                   = X509(row.bpki_cert),
             bpki_glue                   = X509(row.bpki_glue),
@@ -659,7 +723,7 @@ def rpkid_handler(cfg, args, world, root):
             parent_handle               = row.parent_handle,
             bpki_cert                   = X509(row.bpki_cms_cert),
             bpki_glue                   = X509(row.bpki_cms_glue),
-            peer_contact_uri            = row.peer_contact_uri,
+            peer_contact_uri            = fixuri.rpkid(row.peer_contact_uri),
             sia_base                    = row.sia_base,
             sender_name                 = row.sender_name,
             recipient_name              = row.recipient_name,
@@ -678,7 +742,7 @@ def rpkid_handler(cfg, args, world, root):
             pk                          = row.ca_id,
             last_crl_manifest_number    = last_crl_mft_number,
             last_issued_sn              = row.last_issued_sn,
-            sia_uri                     = row.sia_uri,
+            sia_uri                     = fixuri.rsyncd(row.sia_uri),
             parent_resource_class       = row.parent_resource_class,
             parent                      = parent)
 
@@ -822,7 +886,7 @@ def rpkid_handler(cfg, args, world, root):
             ca_detail = ca_detail))
 
 
-def pubd_handler(cfg, args, world, root):
+def pubd_handler(cfg, args, world, root, fixuri):
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.pubd")
     import django
     django.setup()
@@ -834,7 +898,7 @@ def pubd_handler(cfg, args, world, root):
         rpki.pubdb.models.Client.objects.create(
             pk                          = row.client_id,
             client_handle               = row.client_handle,
-            base_uri                    = row.base_uri,
+            base_uri                    = fixuri.rsyncd(row.base_uri),
             bpki_cert                   = X509(row.bpki_cert),
             bpki_glue                   = X509(row.bpki_glue),
             last_cms_timestamp          = row.last_cms_timestamp)
@@ -846,7 +910,7 @@ def pubd_handler(cfg, args, world, root):
             root.pubd_Client))
 
 
-def irdb_handler(cfg, args, world, root):
+def irdb_handler(cfg, args, world, root, fixuri):
     os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")
     import django
     django.setup()
@@ -996,7 +1060,7 @@ def irdb_handler(cfg, args, world, root):
         issuer = rpki.irdb.models.ResourceHolderCA.objects.get(pk = row.issuer_id)
         rpki.irdb.models.Parent.objects.create(
             pk                          = row.turtle_ptr_id,
-            service_uri                 = turtle_map[row.turtle_ptr_id].service_uri,
+            service_uri                 = fixuri.rpkid(turtle_map[row.turtle_ptr_id].service_uri),
             certificate                 = X509(row.certificate),
             handle                      = row.handle,
             ta                          = X509(row.ta),
@@ -1096,20 +1160,18 @@ def irdb_handler(cfg, args, world, root):
         try:
             parent = rpki.irdb.models.Parent.objects.get(pk = row.turtle_id)
         except rpki.irdb.models.Parent.DoesNotExist:
-            if not root.enabled or row.turtle_id != root.rootd_turtle_id:
+            if root.enabled and row.turtle_id == root.rootd_turtle_id:
+                print "  Skipping repository for old rootd instance"
+                continue
+            else:
                 raise
-            print "++ Need to create Parent to replace Rootd"
-            continue # XXX
-            parent = rpki.irdb.models.Parent.objects.create(
-                pk                      = row.turtle_id,
-                service_uri             = root.rootd_turtle_service_uri)
         rpki.irdb.models.Repository.objects.create(
             pk                          = row.id,
             certificate                 = X509(row.certificate),
             handle                      = row.handle,
             ta                          = X509(row.ta),
             client_handle               = row.client_handle,
-            service_uri                 = row.service_uri,
+            service_uri                 = fixuri.pubd(row.service_uri),
             sia_base                    = row.sia_base,
             rrdp_notification_uri       = rrdp_notification_uri,
             turtle                      = parent,

@@ -82,10 +82,8 @@ class LazyDict(object):
 
 class FixURI(object):
     """
-    Clean up URIs.  Mostly this means adjust port numbers as necessary
+    Clean up URIs.  Mostly this means adjusting port numbers as necessary
     to accomodate differences between pickled and current rpki.conf.
-    As a sanity check, we also check the supplied URIs against the pickled
-    configuration, to make sure things aren't too out of whack.
     """
 
     def __init__(self, cfg, args, world):
@@ -111,12 +109,7 @@ class FixURI(object):
         uri = urlparse.urlunparse(u)
         old = urlparse.urlunparse((scheme, old_netloc) + u[2:])
         new = urlparse.urlunparse((scheme, new_netloc) + u[2:])
-        if (u.scheme or u.netloc) and uri != old:
-            print "+ Oops. Raw:", uri
-            print "+       Old:", old
-            print "+       New:", new
-            raise RuntimeError("Supplied URI does not match old configuration")
-        return new
+        return new if uri == old or not u.netloc else uri
 
     def rpkid(self, uri):  return self._fix(uri, "http",  self.old_rpkid,  self.new_rpkid)
     def pubd(self, uri):   return self._fix(uri, "http",  self.old_pubd,   self.new_pubd)
@@ -171,8 +164,8 @@ def main():
     time.tzset()
 
     cfg = rpki.config.argparser(doc = __doc__)
-    cfg.argparser.add_argument("--no-rootd-processing", action = "store_true",
-                               help = "disable special processing for rootd transitions")
+    cfg.argparser.add_argument("--rootd", action = "store_true",
+                               help = "enable extra processing for rootd transitions")
     cfg.add_logging_arguments()
     cfg.argparser.add_argument("input_file", help = "input file")
     args = cfg.argparser.parse_args()
@@ -212,7 +205,7 @@ class Root(object):
 
     def __init__(self, cfg, args, world, fixuri):
 
-        self.enabled = cfg_to_Bool(world.cfg.myrpki.run_rootd) and not args.no_rootd_processing
+        self.enabled = cfg_to_Bool(world.cfg.myrpki.run_rootd) and args.rootd
 
         if not self.enabled:
             return
@@ -610,7 +603,7 @@ class Root(object):
             latest_manifest             = None,
             manifest_published          = None,
             state                       = "active",
-            #ca_cert_uri                =
+            ca_cert_uri                 = root_rsync_uri + rpki_root_key.gSKI() + ".cer",
 
             # Foreign keys
             #ca                         =
@@ -724,7 +717,7 @@ def rpkid_handler(cfg, args, world, root, fixuri):
             bpki_cert                   = X509(row.bpki_cms_cert),
             bpki_glue                   = X509(row.bpki_cms_glue),
             peer_contact_uri            = fixuri.rpkid(row.peer_contact_uri),
-            sia_base                    = row.sia_base,
+            sia_base                    = fixuri.rsyncd(row.sia_base),
             sender_name                 = row.sender_name,
             recipient_name              = row.recipient_name,
             last_cms_timestamp          = row.last_cms_timestamp,
@@ -762,7 +755,7 @@ def rpkid_handler(cfg, args, world, root, fixuri):
             latest_manifest             = MFT(row.latest_manifest),
             manifest_published          = row.manifest_published,
             state                       = row.state,
-            ca_cert_uri                 = row.ca_cert_uri,
+            ca_cert_uri                 = fixuri.rsyncd(row.ca_cert_uri),
             ca                          = ca)
 
     show_model("rpkid", "child")
@@ -1139,10 +1132,6 @@ def irdb_handler(cfg, args, world, root, fixuri):
     # Turtle without a Parent can happen where the old database had a Rootd.
     # We can create an irdb parent, but only handle_rpkid() (or rpkid itself)
     # can create an rpkidb Parent object, so we need to coordinate with handle_rpkid().
-    #
-    # Probably the best plan is to continue along the path of collecting all the data
-    # needed to create all rootd-related objects in this script's Root class, and
-    # figure all that out before ever forking any of the handlers.
 
     rrdp_notification_uri = cfg.get(section = "myrpki", option = "publication_rrdp_notification_uri")
 
@@ -1153,7 +1142,7 @@ def irdb_handler(cfg, args, world, root, fixuri):
         try:
             parent = rpki.irdb.models.Parent.objects.get(pk = row.turtle_id)
         except rpki.irdb.models.Parent.DoesNotExist:
-            if root.enabled and row.turtle_id == root.rootd_turtle_id:
+            if row.turtle_id in set(r.turtle_ptr_id for r in world.db.irdbd.irdb_rootd):
                 print "  Skipping repository for old rootd instance"
                 continue
             else:
@@ -1165,7 +1154,7 @@ def irdb_handler(cfg, args, world, root, fixuri):
             ta                          = X509(row.ta),
             client_handle               = row.client_handle,
             service_uri                 = fixuri.pubd(row.service_uri),
-            sia_base                    = row.sia_base,
+            sia_base                    = fixuri.rsyncd(row.sia_base),
             rrdp_notification_uri       = rrdp_notification_uri,
             parent                      = parent,
             issuer                      = issuer)
@@ -1179,7 +1168,7 @@ def irdb_handler(cfg, args, world, root, fixuri):
             certificate                 = X509(row.certificate),
             handle                      = row.handle,
             ta                          = X509(row.ta),
-            sia_base                    = row.sia_base,
+            sia_base                    = fixuri.rsyncd(row.sia_base),
             issuer                      = issuer)
 
     reset_sequence("irdb")

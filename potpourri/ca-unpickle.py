@@ -268,6 +268,9 @@ class Root(object):
 
         self.work_resourceholderca_id = work_resourceholderca.id
 
+        work_irdb_repository = self.iter_get(row for row in world.db.irdbd.irdb_repository
+                                             if row.turtle_id == rootd.turtle_ptr_id)
+
         work_tenant = self.iter_get(row for row in world.db.rpkid.self
                                     if row.self_handle == work_resourceholderca.handle)
 
@@ -285,6 +288,9 @@ class Root(object):
                                   option  = "tenant_regen_margin",
                                   default = 14 * 24 * 60 * 60 + 2 * 60)
 
+        # RPKI root CA validity interval, in case we still need it.
+        #rpki.sundial.timedelta(days = 3653)
+
         # Whole lota new BPKI glorp.
 
         root_resourceholderca_serial = 1
@@ -294,7 +300,7 @@ class Root(object):
             subject_name        = rpki.x509.X501DN.from_cn("{} BPKI resource CA".format(root_handle)),
             serial              = root_resourceholderca_serial,
             now                 = now,
-            notAfter            = now + rpki.sundial.timedelta(days = 3652))
+            notAfter            = now + rpki.sundial.timedelta(days = 60))
         root_resourceholderca_serial += 1
         root_resourceholderca_crl = rpki.x509.CRL.generate(
             keypair             = root_resourceholderca_key,
@@ -482,7 +488,6 @@ class Root(object):
         # doesn't contain the fields we need to set here.  So we'll need to create a new irdb Parent
         # object for the working CA, coresponding to the rpkid Parent object we're updating here.
 
-        work_rpkid_parent.parent_handle    = root_handle
         work_rpkid_parent.recipient_name   = root_handle
         work_rpkid_parent.peer_contact_uri = root_up_down_path
         work_rpkid_parent.bpki_cms_cert    = root_hostedca_cer.get_DER()
@@ -492,7 +497,7 @@ class Root(object):
 
         self.irdb_work_Parent = dict(
             certificate                 = root_hostedca_cer,
-            handle                      = root_handle,
+            handle                      = work_rpkid_parent.parent_handle,
             ta                          = root_resourceholderca_cer,
             service_uri                 = fixuri.rpkid(root_up_down_path),
             parent_handle               = root_handle,
@@ -504,6 +509,17 @@ class Root(object):
             ipv4_resources              = "",
             ipv6_resources              = "",
             # Foreign keys:             issuer
+        )
+
+        self.irdb_work_Repository = dict(
+            certificate                 = X509(work_irdb_repository.certificate),
+            handle                      = work_irdb_repository.handle,
+            ta                          = X509(work_irdb_repository.ta),
+            client_handle               = work_irdb_repository.client_handle,
+            service_uri                 = fixuri.pubd(work_irdb_repository.service_uri),
+            sia_base                    = fixuri.pubd(work_irdb_repository.sia_base),
+            rrdp_notification_uri       = rrdp_notification_uri,
+            # Foreign keys:             issuer, parent
         )
 
         self.irdb_root_ResourceHolderCA = dict(
@@ -1225,10 +1241,15 @@ def irdb_handler(cfg, args, world, root, fixuri):
     reset_sequence("irdb")
 
     if root.enabled:
+        irdb_issuer = rpki.irdb.models.ResourceHolderCA.objects.get(
+            pk = root.work_resourceholderca_id)
         irdb_parent = rpki.irdb.models.Parent.objects.create(**dict(
             root.irdb_work_Parent,
-            issuer = rpki.irdb.models.ResourceHolderCA.objects.get(
-                pk = root.work_resourceholderca_id)))
+            issuer = irdb_issuer))
+        irdb_repository = rpki.irdb.models.Repository.objects.create(**dict(
+            root.irdb_work_Repository,
+            issuer = irdb_issuer,
+            parent = irdb_parent))
         serverca = rpki.irdb.models.ServerCA.objects.get()
         resourceholderca = rpki.irdb.models.ResourceHolderCA.objects.create(**dict(
             root.irdb_root_ResourceHolderCA))

@@ -203,6 +203,14 @@ def main():
 
 class Root(object):
 
+    @staticmethod
+    def iter_get(iterable):
+        result = tuple(iterable)
+        if len(result) == 1:
+            return result[0]
+        else:
+            raise RuntimeError("Iterable returned {} results, expected one".format(len(result)))
+
     def __init__(self, cfg, args, world, fixuri):
 
         self.enabled = cfg_to_Bool(world.cfg.myrpki.run_rootd) and args.rootd
@@ -235,7 +243,7 @@ class Root(object):
         rpki_root_last_serial = max(
             rpki_root_cer.getSerial(),
             rpki_work_cer.getSerial(),
-            rpki_root_mft.get_POW().certs()[0].getSerial())
+            self.iter_get(rpki_root_mft.get_POW().certs()).getSerial())
 
         rpki_root_mft.extract()
 
@@ -243,31 +251,29 @@ class Root(object):
             rpki_root_mft.get_POW().getManifestNumber(),
             rpki_root_crl.getCRLNumber())
 
-        turtles = tuple(row for row in world.db.irdbd.irdb_turtle
-                        if row.id not in
-                        frozenset(p.turtle_ptr_id for p in world.db.irdbd.irdb_parent))
-        if len(turtles) != 1:
-            raise RuntimeError("Expected to find exactly one Parentless Turtle")
-        self.rootd_turtle_id = turtles[0].id
-        rootd_turtle_service_uri = turtles[0].service_uri
+        rootd_turtle = self.iter_get(row for row in world.db.irdbd.irdb_turtle
+                                     if row.id not in
+                                     frozenset(p.turtle_ptr_id for p in world.db.irdbd.irdb_parent))
+        self.rootd_turtle_id = rootd_turtle.id
 
-        assert len(world.db.irdbd.irdb_serverca) == 1
-        serverca = world.db.irdbd.irdb_serverca[0]
+        serverca = self.iter_get(world.db.irdbd.irdb_serverca)
         serverca_cer = X509(serverca.certificate)
         serverca_key = RSA(serverca.private_key)
 
-        rootd = world.db.irdbd.irdb_rootd[0]
+        rootd = self.iter_get(world.db.irdbd.irdb_rootd)
 
-        work_resourceholderca = tuple(row for row in world.db.irdbd.irdb_resourceholderca
-                       if row.id == rootd.issuer_id)[0]
+        work_resourceholderca = self.iter_get(row for row in world.db.irdbd.irdb_resourceholderca
+                                              if row.id == rootd.issuer_id)
         work_resourceholderca_cer = X509(work_resourceholderca.certificate)
 
-        work_tenant = tuple(row for row in world.db.rpkid.self
-                            if row.self_handle == work_resourceholderca.handle)[0]
+        self.work_resourceholderca_id = work_resourceholderca.id
 
-        work_parent = tuple(row for row in world.db.rpkid.parent
-                            if row.parent_handle == work_resourceholderca.handle
-                            and row.self_id == work_tenant.self_id)[0]
+        work_tenant = self.iter_get(row for row in world.db.rpkid.self
+                                    if row.self_handle == work_resourceholderca.handle)
+
+        work_rpkid_parent = self.iter_get(row for row in world.db.rpkid.parent
+                                          if row.parent_handle == work_resourceholderca.handle
+                                          and row.self_id == work_tenant.self_id)
 
         now = rpki.sundial.now()
 
@@ -372,10 +378,6 @@ class Root(object):
         rrdp_notification_uri = cfg.get(section = "myrpki",
                                         option = "publication_rrdp_notification_uri")
 
-        rootd_uri = "http://{host}:{port}/".format(
-            host = world.cfg.rootd.server_host, 
-            port = world.cfg.rootd.server_port)
-
         # Some sanity checks
 
         if len(world.db.irdbd.irdb_rootd) != 1:
@@ -390,11 +392,8 @@ class Root(object):
         if rootd.private_key != rootd_bpki_key.get_DER():
             raise RuntimeError("Pickled rootd BPKI key does not match pickled SQL")
 
-        if rootd_turtle_service_uri != rootd_uri:
-            raise RuntimeError("Pickled Rootd service_uri does not match pickled configuration")
-
-        if work_parent.peer_contact_uri != rootd_uri:
-            raise RuntimeError("Pickled Rootd service_uri does not match pickled configuration")
+        if rootd_turtle.service_uri != work_rpkid_parent.peer_contact_uri:
+            raise RuntimeError("Inconsistent pickled Rootd configuration")
 
         if serverca_cer != rootd_bpki_ta:
             raise RuntimeError("Pickled rootd BPKI TA does not match pickled SQL ServerCA")
@@ -402,18 +401,44 @@ class Root(object):
         if work_resourceholderca_cer != child_bpki_cer:
             raise RuntimeError("Pickled rootd BPKI child CA does not match pickled SQL")
 
+        if rootd_turtle.service_uri != "http://{host}:{port}/".format(
+                host = world.cfg.rootd.server_host,
+                port = world.cfg.rootd.server_port):
+            raise RuntimeError("Pickled Rootd service_uri does not match pickled configuration")
+
         # Adjust saved working CA's parent object to point at new root.
         # We supply just the path portion of the URI here, to avoid confusing fixuri.rpkid() later.
+        #
+        # NB: This is the rpkid Parent object.  We'd perform the same updates for the irdb Parent
+        # object, but it doesn't exist under the old schema, instead we had the Rootd object which
+        # doesn't contain the fields we need to set here.  So we'll need to create a new irdb Parent
+        # object for the working CA, coresponding to the rpkid Parent object we're updating here.
 
-        work_parent.parent_handle = root_handle
-        work_parent.recipient_name = root_handle
-        work_parent.peer_contact_uri = root_up_down_path
-        work_parent.bpki_cms_cert = root_hostedca_cer.get_DER()
+        work_rpkid_parent.parent_handle    = root_handle
+        work_rpkid_parent.recipient_name   = root_handle
+        work_rpkid_parent.peer_contact_uri = root_up_down_path
+        work_rpkid_parent.bpki_cms_cert    = root_hostedca_cer.get_DER()
 
         # Templates we'll pass to ORM .objects.create() calls in handlers,
         # after filling in foreign key fields as needed.
 
-        self.irdb_ResourceHolderCA = dict(
+        self.irdb_work_Parent = dict(
+            certificate                 = root_hostedca_cer,
+            handle                      = root_handle,
+            ta                          = root_resourceholderca_cer,
+            service_uri                 = root_up_down_uri,
+            parent_handle               = root_handle,
+            child_handle                = work_rpkid_parent.sender_name,
+            repository_type             = "none",
+            referrer                    = None,
+            referral_authorization      = None,
+            asn_resources               = "",
+            ipv4_resources              = "",
+            ipv6_resources              = "",
+            # Foreign keys:             issuer
+        )
+
+        self.irdb_root_ResourceHolderCA = dict(
             certificate                 = root_resourceholderca_cer,
             private_key                 = root_resourceholderca_key,
             latest_crl                  = root_resourceholderca_crl,
@@ -424,15 +449,12 @@ class Root(object):
             handle                      = root_handle,
         )
 
-        self.irdb_HostedCA = dict(
+        self.irdb_root_HostedCA = dict(
             certificate                 = root_hostedca_cer,
-
-            # Foreign keys
-            #issuer                     =
-            #hosted                     =
+            # Foreign keys:             issuer, hosted
         )
 
-        self.irdb_Parent = dict(
+        self.irdb_root_Parent = dict(
             certificate                 = root_parent_bpki_cer,
             handle                      = root_handle,
             ta                          = root_resourceholderca_cer,
@@ -445,57 +467,45 @@ class Root(object):
             asn_resources               = "0-4294967295",
             ipv4_resources              = "0.0.0.0/0",
             ipv6_resources              = "::/0",
-
-            # Foreign keys
-            #issuer                     =
+            # Foreign keys:             issuer
         )
 
-        self.irdb_BSC = dict(
+        self.irdb_root_BSC = dict(
             certificate                 = root_bsc_cer,
             handle                      = "bsc",
             pkcs10                      = root_bsc_pkcs10,
-
-            # Foreign keys
-            #issuer                     =
+            # Foreign keys:             issuer
         )
 
-        self.irdb_Child = dict(
+        self.irdb_root_Child = dict(
             certificate                 = root_child_bpki_cer,
             handle                      = work_resourceholderca.handle,
             ta                          = work_resourceholderca_cer,
             valid_until                 = work_resourceholderca_cer.getNotAfter(),
-
-            # Foreign keys
-            #issuer                     =
+            # Foreign keys:             issuer
         )
 
-        self.irdb_ChildASN = dict(
+        self.irdb_root_ChildASN = dict(
             start_as                    = 0,
             end_as                      = 4294967295,
-
-            # Foreign keys
-            #child                      =
+            # Foreign keys:             child
         )
 
-        self.irdb_ChildNet = dict(
+        self.irdb_root_ChildNet = dict(
             start_ip                    = "0.0.0.0",
             end_ip                      = "255.255.255.255",
             version                     = 4,
-
-            # Foreign keys
-            #child                      =
+            # Foreign keys:             child
         )
 
-        self.irdb_ChildNet = dict(
+        self.irdb_root_ChildNet = dict(
             start_ip                    = "::",
             end_ip                      = "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
             version                     = 6,
-
-            # Foreign keys
-            #child                      =
+            # Foreign keys:             child
         )
 
-        self.irdb_Repository = dict(
+        self.irdb_root_Repository = dict(
             certificate                 = root_repository_bpki_cer,
             handle                      = root_handle,
             ta                          = serverca_cer,
@@ -503,23 +513,18 @@ class Root(object):
             service_uri                 = root_publication_control_uri,
             sia_base                    = root_rsync_uri,
             rrdp_notification_uri       = rrdp_notification_uri,
-
-            # Foreign keys
-            #parent                     =
-            #issuer                     =
+            # Foreign keys:             issuer, parent
         )
 
-        self.irdb_Client = dict(
+        self.irdb_root_Client = dict(
             certificate                 = root_client_cer,
             handle                      = root_handle,
             ta                          = root_resourceholderca_cer,
             sia_base                    = root_rsync_uri,
-
-            # Foreign keys
-            #issuer                     =
+            # Foreign keys:             issuer
         )
 
-        self.pubd_Client = dict(
+        self.pubd_root_Client = dict(
             client_handle               = root_handle,
             base_uri                    = root_rsync_uri,
             bpki_cert                   = root_client_cer,
@@ -527,7 +532,7 @@ class Root(object):
             last_cms_timestamp          = None,
         )
 
-        self.rpkid_Tenant = dict(
+        self.rpkid_root_Tenant = dict(
             tenant_handle               = root_handle,
             use_hsm                     = False,
             crl_interval                = cfg.getint(section = "myrpki",
@@ -540,30 +545,25 @@ class Root(object):
             bpki_glue                   = None,
         )
 
-        self.rpkid_BSC = dict(
+        self.rpkid_root_BSC = dict(
             bsc_handle                  = "bsc",
             private_key_id              = root_bsc_key,
             pkcs10_request              = root_bsc_pkcs10,
             signing_cert                = root_bsc_cer,
             signing_cert_crl            = root_resourceholderca_crl,
-
-            # Foreign keys
-            #tenant                      =
+            # Foreign keys:             tenant
         )
 
-        self.rpkid_Repository = dict(
+        self.rpkid_root_Repository = dict(
             repository_handle           = root_handle,
             peer_contact_uri            = root_publication_control_uri,
             bpki_cert                   = root_repository_bpki_cer,
             bpki_glue                   = None,
             last_cms_timestamp          = None,
-
-            # Foreign keys
-            #bsc                         =
-            #tenant                      =
+            # Foreign keys:             tenant, bsc
         )
 
-        self.rpkid_Parent = dict(
+        self.rpkid_root_Parent = dict(
             parent_handle               = root_handle,
             bpki_cert                   = root_parent_bpki_cer,
             bpki_glue                   = None,
@@ -575,24 +575,18 @@ class Root(object):
             root_asn_resources          = "0-4294967295",
             root_ipv4_resources         = "0.0.0.0/0",
             root_ipv6_resources         = "::/0",
-
-            # Foreign keys
-            #bsc                        =
-            #repository                 =
-            #tenant                     =
+            # Foreign keys:             tenant, bsc, repository
         )
 
-        self.rpkid_CA = dict(
+        self.rpkid_root_CA = dict(
             last_crl_manifest_number    = rpki_root_last_crl_manifest_number,
             last_issued_sn              = rpki_root_last_serial,
             sia_uri                     = root_rsync_uri,
             parent_resource_class       = world.cfg.rootd.rpki_class_name,
-
-            # Foreign keys
-            #parent                     =
+            # Foreign keys:             parent
         )
 
-        self.rpkid_CADetail = dict(
+        self.rpkid_root_CADetail = dict(
             public_key                  = rpki_root_key.get_public(),
             private_key_id              = rpki_root_key,
             latest_crl                  = None,
@@ -604,30 +598,22 @@ class Root(object):
             manifest_published          = None,
             state                       = "active",
             ca_cert_uri                 = root_rsync_uri + rpki_root_key.gSKI() + ".cer",
-
-            # Foreign keys
-            #ca                         =
+            # Foreign keys:             ca
         )
 
-        self.rpkid_Child = dict(
+        self.rpkid_root_Child = dict(
             child_handle                = work_resourceholderca.handle,
             bpki_cert                   = root_child_bpki_cer,
             bpki_glue                   = None,
             last_cms_timestamp          = None,
-
-            # Foreign keys
-            #tenant                     =
-            #bsc                        =
+            # Foreign keys:             tenant, bsc
         )
 
-        self.rpkid_ChildCert = dict(
+        self.rpkid_root_ChildCert = dict(
             cert                        = rpki_work_cer,
             published                   = None,
             gski                        = rpki_work_cer.gSKI(),
-
-            # Foreign keys
-            #child                      =
-            #ca_detail                  =
+            # Foreign keys:             child, ca_detail
         )
 
 
@@ -850,31 +836,31 @@ def rpkid_handler(cfg, args, world, root, fixuri):
 
     if root.enabled:
         tenant = rpki.rpkidb.models.Tenant.objects.create(**dict(
-            root.rpkid_Tenant))
+            root.rpkid_root_Tenant))
         bsc = rpki.rpkidb.models.BSC.objects.create(**dict(
-            root.rpkid_BSC,
+            root.rpkid_root_BSC,
             tenant = tenant))
         repository = rpki.rpkidb.models.Repository.objects.create(**dict(
-            root.rpkid_Repository,
+            root.rpkid_root_Repository,
             tenant = tenant,
             bsc    = bsc))
         parent = rpki.rpkidb.models.Parent.objects.create(**dict(
-            root.rpkid_Parent,
+            root.rpkid_root_Parent,
             tenant     = tenant,
             bsc        = bsc,
             repository = repository))
         ca = rpki.rpkidb.models.CA.objects.create(**dict(
-            root.rpkid_CA,
+            root.rpkid_root_CA,
             parent = parent))
         ca_detail = rpki.rpkidb.models.CADetail.objects.create(**dict(
-            root.rpkid_CADetail,
+            root.rpkid_root_CADetail,
             ca = ca))
         child = rpki.rpkidb.models.Child.objects.create(**dict(
-            root.rpkid_Child,
+            root.rpkid_root_Child,
             tenant = tenant,
             bsc    = bsc))
         child_cert = rpki.rpkidb.models.ChildCert.objects.create(**dict(
-            root.rpkid_ChildCert,
+            root.rpkid_root_ChildCert,
             child     = child,
             ca_detail = ca_detail))
 
@@ -900,7 +886,7 @@ def pubd_handler(cfg, args, world, root, fixuri):
 
     if root.enabled:
         rpki.pubdb.models.Client.objects.create(**dict(
-            root.pubd_Client))
+            root.pubd_root_Client))
 
 
 def irdb_handler(cfg, args, world, root, fixuri):
@@ -1174,34 +1160,38 @@ def irdb_handler(cfg, args, world, root, fixuri):
     reset_sequence("irdb")
 
     if root.enabled:
+        irdb_parent = rpki.irdb.models.Parent.objects.create(**dict(
+            root.irdb_work_Parent,
+            issuer = rpki.irdb.models.ResourceHolderCA.objects.get(
+                pk = root.work_resourceholderca_id)))
         serverca = rpki.irdb.models.ServerCA.objects.get()
         resourceholderca = rpki.irdb.models.ResourceHolderCA.objects.create(**dict(
-            root.irdb_ResourceHolderCA))
+            root.irdb_root_ResourceHolderCA))
         hostedca = rpki.irdb.models.HostedCA(**dict(
-            root.irdb_HostedCA,
+            root.irdb_root_HostedCA,
             issuer = serverca,
             hosted = resourceholderca))
         parent = rpki.irdb.models.Parent.objects.create(**dict(
-            root.irdb_Parent,
+            root.irdb_root_Parent,
             issuer = resourceholderca))
         bsc = rpki.irdb.models.BSC.objects.create(**dict(
-            root.irdb_BSC,
+            root.irdb_root_BSC,
             issuer = resourceholderca))
         child = rpki.irdb.models.Child.objects.create(**dict(
-            root.irdb_Child,
+            root.irdb_root_Child,
             issuer = resourceholderca))
         childasn = rpki.irdb.models.ChildASN.objects.create(**dict(
-            root.irdb_ChildASN,
+            root.irdb_root_ChildASN,
             child = child))
         childnet = rpki.irdb.models.ChildNet.objects.create(**dict(
-            root.irdb_ChildNet,
+            root.irdb_root_ChildNet,
             child = child))
         repository = rpki.irdb.models.Repository.objects.create(**dict(
-            root.irdb_Repository,
+            root.irdb_root_Repository,
             parent = parent,
             issuer = resourceholderca))
         client = rpki.irdb.models.Client.objects.create(**dict(
-            root.irdb_Client,
+            root.irdb_root_Client,
             issuer = serverca))
 
 

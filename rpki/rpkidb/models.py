@@ -748,6 +748,7 @@ class Parent(models.Model):
     @tornado.gen.coroutine
     def query_up_down(self, rpkid, q_msg):
         trace_call_chain()
+        #logger.debug("%r query_up_down(): %s", self, ElementToString(q_msg))
         if self.root_asn_resources or self.root_ipv4_resources or self.root_ipv6_resources:
             r_msg = yield self.query_up_down_root(rpkid, q_msg)
         elif self.bsc is None:
@@ -773,6 +774,7 @@ class Parent(models.Model):
                                   self.tenant.bpki_cert, self.tenant.bpki_glue,
                                   self.bpki_cert, self.bpki_glue))
             r_cms.check_replay_sql(self, self.peer_contact_uri)
+        #logger.debug("%r query_up_down(): %s", self, ElementToString(r_msg))
         rpki.up_down.check_response(r_msg, q_msg.get("type"))
         raise tornado.gen.Return(r_msg)
 
@@ -797,8 +799,6 @@ class Parent(models.Model):
 
         trace_call_chain()
         publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
-
-        #logger.debug("%r query_up_down_root(): %s", self, ElementToString(q_msg))
 
         r_msg = Element(rpki.up_down.tag_message,
                         nsmap     = rpki.up_down.nsmap,
@@ -914,8 +914,6 @@ class Parent(models.Model):
             del r_msg[:]
             r_msg.set("type", "error_response")
             SubElement(r_msg, rpki.up_down.tag_status).text = "2001"
-
-        #logger.debug("%r query_up_down_root(): %s", self, ElementToString(r_msg))
 
         raise tornado.gen.Return(r_msg)
 
@@ -1875,6 +1873,8 @@ class ChildCert(models.Model):
             resources = old_resources
         if sia is None:
             sia = old_sia
+        if len(sia) < 4 or not sia[3]:
+            sia = (sia[0], sia[1], sia[2], ca_detail.ca.parent.repository.rrdp_notification_uri)
         assert resources.valid_until is not None and old_resources.valid_until is not None
         if resources.asn != old_resources.asn or resources.v4 != old_resources.v4 or resources.v6 != old_resources.v6:
             logger.debug("Resources changed for %r: old %s new %s", self, old_resources, resources)

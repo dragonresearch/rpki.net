@@ -868,6 +868,20 @@ class main(Cmd):
 
 
     @parsecmd(argsubparsers)
+    def do_force_run_now(self, args):
+        """
+        Force rpkid to run periodic tasks for this Tenant immediately.
+
+        This is not usually necessary, as rpkid runs all of these
+        tasks on a regular schedule, but this command can be useful
+        occasionally when configuration change is taking a long time
+        to percolate through a series of parent/child exchanges.
+        """
+
+        self.zoo.run_rpkid_now()
+
+
+    @parsecmd(argsubparsers)
     def do_up_down_rekey(self, args):
         """
         Initiate a "rekey" operation.

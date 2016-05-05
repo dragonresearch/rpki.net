@@ -277,6 +277,16 @@ class Root(object):
 
         now = rpki.sundial.now()
 
+        crl_interval = cfg.getint(section = "myrpki",
+                                  option  = "tenant_crl_interval",
+                                  default = 6 * 60 * 60)
+
+        regen_margin = cfg.getint(section = "myrpki",
+                                  option  = "tenant_regen_margin",
+                                  default = 14 * 24 * 60 * 60 + 2 * 60)
+
+        # Whole lota new BPKI glorp.
+
         root_resourceholderca_serial = 1
         root_resourceholderca_key = rpki.x509.RSA.generate()
         root_resourceholderca_cer = rpki.x509.X509.bpki_self_certify(
@@ -362,11 +372,14 @@ class Root(object):
             pathLenConstraint   = 0)
         serverca.next_serial += 1
 
+        # Various contact URIs.
+
         root_up_down_path = "/up-down/{root}/{work}".format(
             root = root_handle,
             work = work_resourceholderca.handle)
 
-        root_up_down_uri = fixuri.rpkid(root_up_down_path)
+        root_loopback_uri = fixuri.rpkid("/up-down/{root}/{root}".format(
+            root = root_handle))
 
         root_publication_control_uri = fixuri.pubd("/client/{root}".format(
             root = root_handle))
@@ -374,6 +387,14 @@ class Root(object):
         root_rsync_uri = fixuri.rsyncd("/{module}/{handle}/".format(
             module = cfg.get(section = "myrpki", option = "publication_rsync_module"),
             handle = root_handle))
+
+        rpki_root_cer_uri = fixuri.rsyncd("/{module}/{gski}.cer".format(
+            module = cfg.get(section = "myrpki", option = "publication_rsync_module"),
+            gski   = rpki_root_key.gSKI()))
+
+        rpki_root_crl_uri = root_rsync_uri + rpki_root_key.gSKI() + ".crl"
+
+        rpki_root_mft_uri = root_rsync_uri + rpki_root_key.gSKI() + ".mft"
 
         rrdp_notification_uri = cfg.get(section = "myrpki",
                                         option = "publication_rrdp_notification_uri")
@@ -406,6 +427,53 @@ class Root(object):
                 port = world.cfg.rootd.server_port):
             raise RuntimeError("Pickled Rootd service_uri does not match pickled configuration")
 
+        # Updated RPKI root certificate, CRL and manifest.
+        # The root certificate URI here isn't really right, but it's (probably) harmless.
+
+        rpki_root_last_serial += 1
+        rpki_root_cer = rpki.x509.X509.self_certify(
+            keypair             = rpki_root_key,
+            subject_key         = rpki_root_key.get_public(),
+            serial              = rpki_root_last_serial,
+            sia                 = (root_rsync_uri, rpki_root_mft_uri, None, rrdp_notification_uri),
+            notAfter            = rpki_root_resources.valid_until,
+            resources           = rpki_root_resources)
+
+        rpki_root_last_crl_manifest_number += 1
+
+        root_rpki_crl = rpki.x509.CRL.generate(
+            keypair             = rpki_root_key,
+            issuer              = rpki_root_cer,
+            serial              = rpki_root_last_crl_manifest_number,
+            thisUpdate          = now,
+            nextUpdate          = now + rpki.sundial.timedelta(seconds = crl_interval),
+            revokedCertificates = ())
+
+        rpki_root_last_serial += 1
+        mft_cer = rpki_root_cer.issue(
+            keypair             = rpki_root_key,
+            subject_key         = rpki_root_mft_key.get_public(),
+            serial              = rpki_root_last_serial,
+            sia                 = (None, None, rpki_root_mft_uri, rrdp_notification_uri),
+            resources           = rpki.resource_set.resource_bag.from_inheritance(),
+            aia                 = rpki_root_cer_uri,
+            crldp               = rpki_root_crl_uri,
+            notBefore           = now,
+            notAfter            = rpki_root_cer.getNotAfter(),
+            is_ca               = False)
+
+        rpki_root_mft_objs = [
+            (rpki_root_key.gSKI() + ".crl", root_rpki_crl),
+            (work_resourceholderca_cer.gSKI() + ".cer", work_resourceholderca_cer)]
+
+        rpki_root_mft = rpki.x509.SignedManifest.build(
+            keypair             = rpki_root_mft_key,
+            certs               = mft_cer,
+            serial              = rpki_root_last_crl_manifest_number,
+            thisUpdate          = now,
+            nextUpdate          = now + rpki.sundial.timedelta(seconds = crl_interval),
+            names_and_objs      = rpki_root_mft_objs)
+
         # Adjust saved working CA's parent object to point at new root.
         # We supply just the path portion of the URI here, to avoid confusing fixuri.rpkid() later.
         #
@@ -426,7 +494,7 @@ class Root(object):
             certificate                 = root_hostedca_cer,
             handle                      = root_handle,
             ta                          = root_resourceholderca_cer,
-            service_uri                 = root_up_down_uri,
+            service_uri                 = fixuri.rpkid(root_up_down_path),
             parent_handle               = root_handle,
             child_handle                = work_rpkid_parent.sender_name,
             repository_type             = "none",
@@ -458,7 +526,7 @@ class Root(object):
             certificate                 = root_parent_bpki_cer,
             handle                      = root_handle,
             ta                          = root_resourceholderca_cer,
-            service_uri                 = root_up_down_uri,
+            service_uri                 = root_loopback_uri,
             parent_handle               = root_handle,
             child_handle                = root_handle,
             repository_type             = "none",
@@ -535,12 +603,8 @@ class Root(object):
         self.rpkid_root_Tenant = dict(
             tenant_handle               = root_handle,
             use_hsm                     = False,
-            crl_interval                = cfg.getint(section = "myrpki",
-                                                     option  = "tenant_crl_interval",
-                                                     default = 6 * 60 * 60),
-            regen_margin                = cfg.getint(section = "myrpki",
-                                                     option  = "tenant_regen_margin",
-                                                     default = 14 * 24 * 60 * 60 + 2 * 60),
+            crl_interval                = crl_interval,
+            regen_margin                = regen_margin,
             bpki_cert                   = root_hostedca_cer,
             bpki_glue                   = None,
         )
@@ -557,6 +621,7 @@ class Root(object):
         self.rpkid_root_Repository = dict(
             repository_handle           = root_handle,
             peer_contact_uri            = root_publication_control_uri,
+            rrdp_notification_uri       = rrdp_notification_uri,
             bpki_cert                   = root_repository_bpki_cer,
             bpki_glue                   = None,
             last_cms_timestamp          = None,
@@ -567,7 +632,7 @@ class Root(object):
             parent_handle               = root_handle,
             bpki_cert                   = root_parent_bpki_cer,
             bpki_glue                   = None,
-            peer_contact_uri            = root_up_down_uri,
+            peer_contact_uri            = root_loopback_uri,
             sia_base                    = root_rsync_uri,
             sender_name                 = root_handle,
             recipient_name              = root_handle,
@@ -589,15 +654,15 @@ class Root(object):
         self.rpkid_root_CADetail = dict(
             public_key                  = rpki_root_key.get_public(),
             private_key_id              = rpki_root_key,
-            latest_crl                  = None,
+            latest_crl                  = rpki_root_crl,
             crl_published               = None,
             latest_ca_cert              = rpki_root_cer,
             manifest_private_key_id     = rpki_root_mft_key,
             manifest_public_key         = rpki_root_mft_key.get_public(),
-            latest_manifest             = None,
+            latest_manifest             = rpki_root_mft,
             manifest_published          = None,
             state                       = "active",
-            ca_cert_uri                 = root_rsync_uri + rpki_root_key.gSKI() + ".cer",
+            ca_cert_uri                 = rpki_root_cer_uri,
             # Foreign keys:             ca
         )
 

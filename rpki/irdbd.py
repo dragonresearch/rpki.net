@@ -35,11 +35,15 @@ import rpki.log
 import rpki.x509
 import rpki.daemonize
 
-from lxml.etree import Element, SubElement
+from lxml.etree import Element, SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
 class main(object):
+
+    # Whether to drop XMl into the log
+
+    debug = False
 
     def handle_list_resources(self, q_pdu, r_msg):
         tenant_handle = q_pdu.get("tenant_handle")
@@ -117,6 +121,8 @@ class main(object):
             q_cms = rpki.left_right.cms_msg(DER = q_der)
             q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
             self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, request.path)
+            if self.debug:
+                logger.debug("Received: %s", ElementToString(q_msg))
             if q_msg.get("type") != "query":
                 raise rpki.exceptions.BadQuery("Message type is {}, expected query".format(
                     q_msg.get("type")))
@@ -134,6 +140,8 @@ class main(object):
                 if q_pdu.get("tag") is not None:
                     r_pdu.set("tag", q_pdu.get("tag"))
 
+            if self.debug:
+                logger.debug("Sending: %s", ElementToString(r_msg))
             request.send_cms_response(rpki.left_right.cms_msg().wrap(
                 r_msg, irdbd.private_key, irdbd.certificate))
 

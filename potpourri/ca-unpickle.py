@@ -260,7 +260,6 @@ class Root(object):
         root_handle = str(uuid.uuid4())
 
         rpki_root_last_serial = max(
-            rpki_root_cer.getSerial(),
             rpki_work_cer.getSerial(),
             self.iter_get(rpki_root_mft.get_POW().certs()).getSerial())
 

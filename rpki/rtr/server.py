@@ -1,20 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
-# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
-# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, AND ISC DISCLAIM
+# ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS, DRL, OR ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Server implementation for the RPKI-RTR protocol (RFC 6810 et sequalia).
@@ -484,7 +485,8 @@ def server_main(args):
         try:
             os.chdir(args.rpki_rtr_dir)
         except OSError, e:
-            sys.exit(e)
+            logger.error("[Couldn't chdir(%r), exiting: %s]", args.rpki_rtr_dir, e)
+            sys.exit(1)
 
     kickme = None
     try:
@@ -577,7 +579,7 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("server", description = server_main.__doc__,
                                       help = "RPKI-RTR protocol server")
-    subparser.set_defaults(func = server_main, default_log_to = "syslog")
+    subparser.set_defaults(func = server_main, default_log_destination = "syslog")
     subparser.add_argument("--refresh", type = refresh, help = "override default refresh timer")
     subparser.add_argument("--retry",   type = retry,   help = "override default retry timer")
     subparser.add_argument("--expire",  type = expire,  help = "override default expire timer")
@@ -585,7 +587,7 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("listener", description = listener_main.__doc__,
                                       help = "TCP listener for RPKI-RTR protocol server")
-    subparser.set_defaults(func = listener_main, default_log_to = "syslog")
+    subparser.set_defaults(func = listener_main, default_log_destination = "syslog")
     subparser.add_argument("--refresh", type = refresh, help = "override default refresh timer")
     subparser.add_argument("--retry",   type = retry,   help = "override default retry timer")
     subparser.add_argument("--expire",  type = expire,  help = "override default expire timer")

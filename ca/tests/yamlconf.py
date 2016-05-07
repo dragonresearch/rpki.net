@@ -1,8 +1,8 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -194,7 +194,6 @@ class allocation(object):
     rpkid_port    = 4404
     irdbd_port    = 4403
     pubd_port     = 4402
-    rootd_port    = 4401
     rsync_port    = 873
 
     @classmethod
@@ -218,9 +217,9 @@ class allocation(object):
         if valid_until is None and "valid_for" in y:
             valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(y["valid_for"])
         self.base = rpki.resource_set.resource_bag(
-            asn = rpki.resource_set.resource_set_as(y.get("asn")),
-            v4 = rpki.resource_set.resource_set_ipv4(y.get("ipv4")),
-            v6 = rpki.resource_set.resource_set_ipv6(y.get("ipv6")),
+            asn = str(y.get("asn", "")),
+            v4 =  y.get("ipv4"),
+            v6 =  y.get("ipv6"),
           valid_until = valid_until)
         if "crl_interval" in y:
             self.crl_interval = rpki.sundial.timedelta.parse(y["crl_interval"]).convert_to_seconds()
@@ -251,8 +250,6 @@ class allocation(object):
         if loopback and self.runs_pubd:
             self.pubd_port  = self.allocate_port()
             self.rsync_port = self.allocate_port()
-        if loopback and self.is_root:
-            self.rootd_port = self.allocate_port()
 
     def closure(self):
         resources = self.base
@@ -295,7 +292,6 @@ class allocation(object):
         if self.runs_pubd:          s += " PPort: %s\n" % self.pubd_port
         if not self.is_hosted:      s += " RPort: %s\n" % self.rpkid_port
         if self.runs_pubd:          s += " SPort: %s\n" % self.rsync_port
-        if self.is_root:            s += " TPort: %s\n" % self.rootd_port
         return s + " Until: %s\n" % self.resources.valid_until
 
     @property
@@ -412,14 +408,12 @@ class allocation(object):
             handle                    = self.name,
             run_rpkid                 = str(not self.is_hosted),
             run_pubd                  = str(self.runs_pubd),
-            run_rootd                 = str(self.is_root),
             irdbd_sql_username        = "irdb",
             rpkid_sql_username        = "rpki",
             rpkid_server_host         = self.hostname,
             rpkid_server_port         = str(self.rpkid_port),
             irdbd_server_host         = "localhost",
             irdbd_server_port         = str(self.irdbd_port),
-            rootd_server_port         = str(self.rootd_port),
             pubd_sql_username         = "pubd",
             pubd_server_host          = self.pubd.hostname,
             pubd_server_port          = str(self.pubd.pubd_port),
@@ -514,9 +508,9 @@ class allocation(object):
         assert self.is_root and not self.is_hosted
 
         root_resources = rpki.resource_set.resource_bag(
-            asn = rpki.resource_set.resource_set_as("0-4294967295"),
-            v4  = rpki.resource_set.resource_set_ipv4("0.0.0.0/0"),
-            v6  = rpki.resource_set.resource_set_ipv6("::/0"))
+            asn = "0-4294967295",
+            v4  = "0.0.0.0/0",
+            v6  = "::/0")
 
         root_key = rpki.x509.RSA.generate(quiet = True)
 
@@ -676,8 +670,10 @@ def main():
     quiet = args.quiet
     yaml_file = args.yaml_file
 
-    rpki.log.init("yamlconf", argparse.Namespace(log_level   = logging.DEBUG,
-                                                 log_handler = lambda: logging.StreamHandler(sys.stdout)))
+    log_handler = logging.StreamHandler(sys.stdout)
+    log_handler.setFormatter(rpki.config.Formatter("yamlconf", log_handler, logging.DEBUG))
+    logging.getLogger().addHandler(log_handler)
+    logging.getLogger().setLevel(logging.DEBUG)
 
     # Allow optional config file for this tool to override default
     # passwords: this is mostly so that I can show a complete working
@@ -834,7 +830,7 @@ def body():
                 if not quiet:
                     print "Creating RPKI root certificate and TAL"
                 d.dump_root()
-                x = d.zoo.configure_rootd()
+                x = d.zoo.configure_root()
 
             else:
                 with d.parent.irdb:

@@ -1,20 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
-# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
-# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, AND ISC DISCLAIM
+# ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS, DRL, OR ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Command line configuration and control tool for rpkid et al.
@@ -128,7 +129,6 @@ class main(Cmd):
             self.main(args)
 
     def main(self, args):
-        rpki.log.init("rpkic")
         self.read_config()
         if self.interactive:
             self.cmdloop_with_history()
@@ -159,6 +159,11 @@ class main(Cmd):
 
         try:
             cfg = rpki.config.parser(set_filename = self.cfg_file, section = "myrpki")
+            cfg.configure_logging(
+                args  = argparse.Namespace(
+                    log_destination = "stderr", 
+                    log_level       = "warning"),
+                ident = "rpkic")
             cfg.set_global_flags()
         except IOError, e:
             sys.exit("%s: %s" % (e.strerror, e.filename))
@@ -258,18 +263,9 @@ class main(Cmd):
         RPKI installation.
         """
 
-        rootd_case = self.zoo.run_rootd and self.zoo.handle == self.zoo.cfg.get("handle")
-
         r = self.zoo.initialize()
         with swap_uids():
-            r.save("%s.identity.xml" % self.zoo.handle,
-                   None if rootd_case else sys.stdout)
-
-        if rootd_case:
-            r = self.zoo.configure_rootd()
-            if r is not None:
-                with swap_uids():
-                    r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
+            r.save("%s.identity.xml" % self.zoo.handle, sys.stdout)
 
         self.zoo.write_bpki_files()
 
@@ -416,16 +412,21 @@ class main(Cmd):
         return self.irdb_handle_complete(self.zoo.resource_ca.parents, *args)
 
 
-    @parsecmd(argsubparsers)
+    @parsecmd(argsubparsers,
+              cmdarg("--resources", help = "restrict root to specified resources",
+                                    type = rpki.resource_set.resource_bag.from_str,
+                                    default = "0.0.0.0/0,::/0,0-4294967295"),
+              cmdarg("--root_handle", help = "override default handle for new root"))
     def do_configure_root(self, args):
         """
         Configure the current resource holding identity as a root.
 
-        This configures rpkid to talk to rootd as (one of) its parent(s).
         Returns repository request XML file like configure_parent does.
         """
 
-        r = self.zoo.configure_rootd()
+        print "Generating root for resources {!s}".format(args.resources) # XXX
+
+        r = self.zoo.configure_root(args.root_handle, args.resources)
         if r is not None:
             with swap_uids():
                 r.save("%s.%s.repository-request.xml" % (self.zoo.handle, self.zoo.handle), sys.stdout)
@@ -436,18 +437,48 @@ class main(Cmd):
     def do_delete_root(self, args):
         """
         Delete local RPKI root as parent of the current entity.
-
-        This tells the current rpkid identity (<tenant/>) to stop talking to
-        rootd.
         """
 
-        try:
-            self.zoo.delete_rootd()
-            self.zoo.synchronize_ca()
-        except rpki.irdb.models.ResourceHolderCA.DoesNotExist:
-            print "No such resource holder \"%s\"" % self.zoo.handle
-        except rpki.irdb.models.Rootd.DoesNotExist:
-            print "No associated rootd"
+        raise NotImplementedError
+
+
+    @parsecmd(argsubparsers,
+              cmdarg("--root_handle", help = "override default handle"),
+              cmdarg("--output_file", help = "override default output filename"))
+    def do_extract_root_certificate(self, args):
+        """
+        Extract self-signed RPKI certificate from a root object.
+        """
+
+        cert, uris = self.zoo.extract_root_certificate_and_uris(args.root_handle)
+        if cert is None:
+            print "No certificate currently available"
+        else:
+            fn = args.output_file or (cert.gSKI() + ".cer")
+            with open_swapped_uids(fn, "wb") as f:
+                print "Writing", f.name
+                f.write(cert.get_DER())
+
+
+    @parsecmd(argsubparsers,
+              cmdarg("--root_handle", help = "override default handle"),
+              cmdarg("--output_file", help = "override default output filename"))
+    def do_extract_root_tal(self, args):
+        """
+        Extract self-signed RPKI certificate from a root object.
+        """
+
+        cert, uris = self.zoo.extract_root_certificate_and_uris(args.root_handle)
+        if cert is None:
+            print "No certificate currently available"
+        else:
+            fn = args.output_file or (cert.gSKI() + ".tal")
+            with open_swapped_uids(fn, "w") as f:
+                print "Writing", f.name
+                for uri in uris:
+                    f.write(uri + "\n")
+                f.write("\n")
+                f.write(cert.getPublicKey().get_Base64())
 
 
     @parsecmd(argsubparsers,
@@ -835,6 +866,20 @@ class main(Cmd):
         """
 
         self.zoo.reissue()
+
+
+    @parsecmd(argsubparsers)
+    def do_force_run_now(self, args):
+        """
+        Force rpkid to run periodic tasks for this Tenant immediately.
+
+        This is not usually necessary, as rpkid runs all of these
+        tasks on a regular schedule, but this command can be useful
+        occasionally when configuration change is taking a long time
+        to percolate through a series of parent/child exchanges.
+        """
+
+        self.zoo.run_rpkid_now()
 
 
     @parsecmd(argsubparsers)

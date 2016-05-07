@@ -36,6 +36,9 @@ from lxml.etree import Element, SubElement
 from django.contrib.auth.models import User
 from django.db.transaction import atomic
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 def ghostbuster_to_vcard(gbr):
     """Convert a GhostbusterRequest object into a vCard object."""
@@ -79,8 +82,14 @@ def list_received_resources(log, conf):
 
     z = Zookeeper(handle=conf.handle, disable_signal_handlers=True)
     req = Element(tag_msg, nsmap=nsmap, type="query", version=version)
-    SubElement(req, tag_list_received_resources, tenant_handle=conf.handle)
-    pdus = z.call_rpkid(req)
+    SubElement(req, tag_list_received_resources, tenant_handle=conf.handle, tag=conf.handle)
+    try:
+	pdus = z.call_rpkid(req)
+    except Exception as err:
+	logger.error('caught exception while attempting to query rpkid')
+	logger.exception(err)
+	return
+
     # pdus is sometimes None (see https://trac.rpki.net/ticket/681)
     if pdus is None:
         print >>log, 'error: call_rpkid() returned None for handle %s when fetching received resources' % conf.handle

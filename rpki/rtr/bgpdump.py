@@ -1,20 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2009-2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
-# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
-# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, AND ISC DISCLAIM
+# ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS, DRL, OR ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 rpki-rtr simulation code using bgpdump as an input source.  Test
@@ -319,15 +320,15 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("bgpdump-convert", description = bgpdump_convert_main.__doc__,
                                       help = "Convert bgpdump to fake ROAs")
-    subparser.set_defaults(func = bgpdump_convert_main, default_log_to = "syslog")
+    subparser.set_defaults(func = bgpdump_convert_main, default_log_destination = "syslog")
     subparser.add_argument("files", nargs = "+", help = "input files")
 
     subparser = subparsers.add_parser("bgpdump-select", description = bgpdump_select_main.__doc__,
                                       help = "Set current serial number for fake ROA data")
-    subparser.set_defaults(func = bgpdump_select_main, default_log_to = "syslog")
+    subparser.set_defaults(func = bgpdump_select_main, default_log_destination = "syslog")
     subparser.add_argument("ax_file", help = "name of the .ax to select")
 
     subparser = subparsers.add_parser("bgpdump-server", description = bgpdump_server_main.__doc__,
                                       help = "Replay fake ROAs generated from historical data")
-    subparser.set_defaults(func = bgpdump_server_main, default_log_to = "syslog")
+    subparser.set_defaults(func = bgpdump_server_main, default_log_destination = "syslog")
     subparser.add_argument("rpki_rtr_dir", nargs = "?", help = "directory containing RPKI-RTR database")

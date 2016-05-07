@@ -1,21 +1,22 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
-# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+# DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
+# SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+# RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+# CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Trivial RPKI up-down protocol root server.
@@ -349,16 +350,19 @@ class main(object):
             q_msg = q_cms.unwrap((self.bpki_ta, self.child_bpki_cert))
             q_type = q_msg.get("type")
             logger.info("Serving %s query", q_type)
-            r_msg = Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap, version = rpki.up_down.version,
-                            sender  = q_msg.get("recipient"), recipient = q_msg.get("sender"), type = q_type + "_response")
+            r_msg = Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap,
+                            version = rpki.up_down.version,
+                            sender  = q_msg.get("recipient"), recipient = q_msg.get("sender"),
+                            type = q_type + "_response")
             try:
                 self.rpkid_cms_timestamp = q_cms.check_replay(self.rpkid_cms_timestamp, request.path)
                 getattr(self, "handle_" + q_type)(q_msg, r_msg)
             except Exception, e:
                 logger.exception("Exception processing up-down %s message", q_type)
                 rpki.up_down.generate_error_response_from_exception(r_msg, e, q_type)
-            request.send_cms_response(rpki.up_down.cms_msg().wrap(r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
-                                                                  self.rootd_bpki_crl if self.include_bpki_crl else None))
+            request.send_cms_response(rpki.up_down.cms_msg().wrap(
+                r_msg, self.rootd_bpki_key, self.rootd_bpki_cert,
+                self.rootd_bpki_crl if self.include_bpki_crl else None))
         except Exception, e:
             logger.exception("Unhandled exception processing up-down message")
             request.send_error(500, "Unhandled exception %s: %s" % (e.__class__.__name__, e))
@@ -396,19 +400,18 @@ class main(object):
         os.environ["TZ"] = "UTC"
         time.tzset()
 
-        parser = argparse.ArgumentParser(description = __doc__)
-        parser.add_argument("-c", "--config",
-                            help = "override default location of configuration file")
-        parser.add_argument("-f", "--foreground", action = "store_true",
-                            help = "do not daemonize")
-        parser.add_argument("--pidfile",
-                            help = "override default location of pid file")
-        rpki.log.argparse_setup(parser)
+        self.cfg = rpki.config.argparser(section = "rootd", doc = __doc__)
+        self.cfg.add_boolean_argument("--foreground", default = False,
+                                      help = "do not daemonize")
+        self.cfg.add_argument("--pidfile",
+                              default = os.pat.join(rpki.daemonize.default_pid_directory,
+                                                    "rootd.pid"),
+                              help = "override default location of pid file")
+        self.cfg.add_logging_arguments()
         args = parser.parse_args()
 
-        rpki.log.init("rootd", args)
+        self.cfg.configure_logging(args = args, ident = "rootd")
 
-        self.cfg = rpki.config.parser(set_filename = args.config, section = "rootd")
         self.cfg.set_global_flags()
 
         if not args.foreground:

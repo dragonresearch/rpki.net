@@ -2,19 +2,21 @@
 #
 # $Id$
 #
-# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 #
-# Permission to use, copy, modify, and/or distribute this software for any
+# Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS AND DRL DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS OR DRL BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Copies an authenticated result tree from an rcynic run into the format
@@ -26,7 +28,7 @@ distributed as part of the repository system.
 
 import os
 import sys
-import argparse
+import rpki.config
 
 from rpki.rcynicdb.iterator import authenticated_objects
 
@@ -36,11 +38,11 @@ def check_dir(s):
     else:
         raise argparse.ArgumentTypeError("{!r} is not a directory".format(s))
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("-v", "--verbose", action = "store_true", help = "whistle while you work")
-parser.add_argument("rcynic_dir", nargs = "?", type = check_dir, help = "rcynic authenticated output directory")
-parser.add_argument("output_dir", help = "name of output directory to create")
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc = __doc__)
+cfg.argparser.add_argument("-v", "--verbose", action = "store_true", help = "whistle while you work")
+cfg.argparser.add_argument("rcynic_dir", nargs = "?", type = check_dir, help = "rcynic authenticated output directory")
+cfg.argparser.add_argument("output_dir", help = "name of output directory to create")
+args = cfg.argparser.parse_args()
 
 if not os.path.isdir(args.output_dir):
     os.makedirs(args.output_dir)

@@ -522,7 +522,7 @@ def argparse_setup(subparsers):
 
     subparser = subparsers.add_parser("client", description = client_main.__doc__,
                                       help = "Test client for RPKI-RTR protocol")
-    subparser.set_defaults(func = client_main, default_log_to = "stderr")
+    subparser.set_defaults(func = client_main, default_log_destination = "stderr")
     subparser.add_argument("--sql-database", help = "filename for sqlite3 database of client state")
     subparser.add_argument("--force-version", type = int, choices = PDU.version_map, help = "force specific protocol version")
     subparser.add_argument("--reset-session", action = "store_true", help = "reset any existing session found in sqlite3 database")

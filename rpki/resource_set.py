@@ -1,21 +1,22 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
-# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+# DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
+# SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+# RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+# CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Classes dealing with sets of resources.
@@ -644,6 +645,14 @@ class resource_bag(object):
     # Expiration date of resources, for setting certificate notAfter field.
 
     def __init__(self, asn = None, v4 = None, v6 = None, valid_until = None):
+        if isinstance(asn, (str, unicode)):
+            asn = resource_set_as(asn)
+        if isinstance(v4, (str, unicode)):
+            v4  = resource_set_ipv4(v4)
+        if isinstance(v6, (str, unicode)):
+            v6  = resource_set_ipv6(v6)
+        if isinstance(valid_until, (str, unicode)):
+            valid_until = rpki.sundial.datetime.fromXMLtime(valid_until)
         self.asn = asn or resource_set_as()
         self.v4 = v4 or resource_set_ipv4()
         self.v6 = v6 or resource_set_ipv6()

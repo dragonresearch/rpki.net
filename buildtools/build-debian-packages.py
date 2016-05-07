@@ -1,20 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Copyright (C) 2015--2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
-# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
-# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, AND ISC DISCLAIM
+# ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS, DRL, OR ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Set up for a Debian or Ubuntu package build.
@@ -39,7 +40,19 @@ parser.add_argument("-s", "--version-suffix", nargs = "?", const = platform.linu
                     help = "suffix to add to version string")
 args = parser.parse_args()
 
-version = "0." + subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1]
+if os.path.exists(".svn"):
+    version = "0.{rev}".format(
+        rev    = subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1])
+elif os.path.exists(".git/svn"):
+    git_svn_log = subprocess.check_output(("git", "svn", "log", "--show-commit", "--oneline", "--limit=1")).split()
+    version = "0.{rev}.{count}.{time}.{commit}".format(
+        rev    = git_svn_log[0][1:],
+        count  = subprocess.check_output(("git", "rev-list", "--count", git_svn_log[2] + "..HEAD")).strip(),
+        time   = subprocess.check_output(("git", "show", "--no-patch", "--format=%ct", "HEAD")).strip(),
+        commit = subprocess.check_output(("git", "rev-parse", "HEAD")).strip())
+    del git_svn_log
+else:
+    sys.exit("Sorry, don't know how to extract version number from this source tree")
 
 if os.path.exists("debian"):
     shutil.rmtree("debian")

@@ -1,5 +1,5 @@
 # Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-# Copyright (C) 2012, 2014  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2014, 2016  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -50,7 +50,6 @@ from rpki import sundial
 import rpki.exceptions
 import rpki.csv_utils
 
-from rpki.gui.cacheview.models import ROA
 from rpki.gui.routeview.models import RouteOrigin
 from rpki.gui.decorators import tls_required
 
@@ -516,7 +515,7 @@ def child_edit(request, pk):
             models.ChildNet.objects.filter(child=child).exclude(pk__in=form.cleaned_data.get('address_ranges')).delete()
             Zookeeper(
                 handle=conf.handle,
-                logstream=logstream,
+                logstream=log,
                 disable_signal_handlers=True
             ).run_rpkid_now()
             return http.HttpResponseRedirect(child.get_absolute_url())

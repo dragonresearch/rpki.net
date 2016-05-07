@@ -1,20 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2011--2012  Internet Systems Consortium ("ISC")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2011-2012  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
-# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
-# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, AND ISC DISCLAIM
+# ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS, DRL, OR ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Internet Registry (IR) Database, Django-style.
@@ -342,17 +343,6 @@ class Referral(EECertificate):
     def subject_name(self):
         return rpki.x509.X501DN.from_cn("%s BPKI Referral EE" % self.issuer.handle)
 
-class Turtle(django.db.models.Model):
-    service_uri = django.db.models.CharField(max_length = 255)
-
-class Rootd(EECertificate, Turtle):
-    issuer = django.db.models.OneToOneField(ResourceHolderCA, related_name = "rootd")
-    objects = ResourceHolderEEManager()
-
-    @property
-    def subject_name(self):
-        return rpki.x509.X501DN.from_cn("%s BPKI rootd EE" % self.issuer.handle)
-
 class BSC(Certificate):
     issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "bscs")
     handle = HandleField()
@@ -445,13 +435,17 @@ class ChildNet(ResourceSetNet):
     class Meta:
         unique_together = ("child", "start_ip", "end_ip", "version")
 
-class Parent(CrossCertification, Turtle):
+class Parent(CrossCertification):
     issuer = django.db.models.ForeignKey(ResourceHolderCA, related_name = "parents")
+    service_uri = django.db.models.CharField(max_length = 255)
     parent_handle = HandleField()
     child_handle  = HandleField()
     repository_type = EnumField(choices = ("none", "offer", "referral"))
     referrer = HandleField(null = True, blank = True)
     referral_authorization = SignedReferralField(null = True, blank = True)
+    asn_resources = django.db.models.TextField(blank = True)  # root only
+    ipv4_resources = django.db.models.TextField(blank = True) # root only
+    ipv6_resources = django.db.models.TextField(blank = True) # root only
 
     # This shouldn't be necessary
     class Meta:
@@ -485,9 +479,11 @@ class ROARequestPrefix(django.db.models.Model):
 
     def as_roa_prefix(self):
         if self.version == 'IPv4':
-            return rpki.resource_set.roa_prefix_ipv4(rpki.POW.IPAddress(self.prefix), self.prefixlen, self.max_prefixlen)
+            return rpki.resource_set.roa_prefix_ipv4(rpki.POW.IPAddress(self.prefix), 
+                                                     self.prefixlen, self.max_prefixlen)
         else:
-            return rpki.resource_set.roa_prefix_ipv6(rpki.POW.IPAddress(self.prefix), self.prefixlen, self.max_prefixlen)
+            return rpki.resource_set.roa_prefix_ipv6(rpki.POW.IPAddress(self.prefix), 
+                                                     self.prefixlen, self.max_prefixlen)
 
     def as_resource_range(self):
         return self.as_roa_prefix().to_resource_range()
@@ -542,7 +538,7 @@ class Repository(CrossCertification):
     service_uri = django.db.models.CharField(max_length = 255)
     sia_base = django.db.models.TextField()
     rrdp_notification_uri = django.db.models.TextField(null = True)
-    turtle = django.db.models.OneToOneField(Turtle, related_name = "repository")
+    parent = django.db.models.OneToOneField(Parent, related_name = "repository")
 
     # This shouldn't be necessary
     class Meta:

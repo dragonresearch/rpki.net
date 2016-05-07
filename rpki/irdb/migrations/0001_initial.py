@@ -110,6 +110,24 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
+            name='Parent',
+            fields=[
+                ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
+                ('certificate', rpki.fields.CertificateField()),
+                ('handle', rpki.irdb.models.HandleField(max_length=120)),
+                ('ta', rpki.fields.CertificateField()),
+                ('service_uri', models.CharField(max_length=255)),
+                ('parent_handle', rpki.irdb.models.HandleField(max_length=120)),
+                ('child_handle', rpki.irdb.models.HandleField(max_length=120)),
+                ('repository_type', rpki.fields.EnumField(choices=[(1, b'none'), (2, b'offer'), (3, b'referral')])),
+                ('referrer', rpki.irdb.models.HandleField(max_length=120, null=True, blank=True)),
+                ('referral_authorization', rpki.irdb.models.SignedReferralField(null=True)),
+                ('asn_resources', models.TextField(blank=True)),
+                ('ipv4_resources', models.TextField(blank=True)),
+                ('ipv6_resources', models.TextField(blank=True)),
+            ],
+        ),
+        migrations.CreateModel(
             name='Referral',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
@@ -221,42 +239,6 @@ class Migration(migrations.Migration):
                 'abstract': False,
             },
         ),
-        migrations.CreateModel(
-            name='Turtle',
-            fields=[
-                ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('service_uri', models.CharField(max_length=255)),
-            ],
-        ),
-        migrations.CreateModel(
-            name='Parent',
-            fields=[
-                ('turtle_ptr', models.OneToOneField(parent_link=True, auto_created=True, primary_key=True, serialize=False, to='irdb.Turtle')),
-                ('certificate', rpki.fields.CertificateField()),
-                ('handle', rpki.irdb.models.HandleField(max_length=120)),
-                ('ta', rpki.fields.CertificateField()),
-                ('parent_handle', rpki.irdb.models.HandleField(max_length=120)),
-                ('child_handle', rpki.irdb.models.HandleField(max_length=120)),
-                ('repository_type', rpki.fields.EnumField(choices=[(1, b'none'), (2, b'offer'), (3, b'referral')])),
-                ('referrer', rpki.irdb.models.HandleField(max_length=120, null=True, blank=True)),
-                ('referral_authorization', rpki.irdb.models.SignedReferralField(null=True)),
-                ('issuer', models.ForeignKey(related_name='parents', to='irdb.ResourceHolderCA')),
-            ],
-            bases=('irdb.turtle', models.Model),
-        ),
-        migrations.CreateModel(
-            name='Rootd',
-            fields=[
-                ('turtle_ptr', models.OneToOneField(parent_link=True, auto_created=True, primary_key=True, serialize=False, to='irdb.Turtle')),
-                ('certificate', rpki.fields.CertificateField()),
-                ('private_key', rpki.fields.RSAPrivateKeyField()),
-                ('issuer', models.OneToOneField(related_name='rootd', to='irdb.ResourceHolderCA')),
-            ],
-            options={
-                'abstract': False,
-            },
-            bases=('irdb.turtle', models.Model),
-        ),
         migrations.AddField(
             model_name='repository',
             name='issuer',
@@ -264,13 +246,18 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='repository',
-            name='turtle',
-            field=models.OneToOneField(related_name='repository', to='irdb.Turtle'),
+            name='parent',
+            field=models.OneToOneField(related_name='repository', to='irdb.Parent'),
         ),
         migrations.AddField(
             model_name='referral',
             name='issuer',
             field=models.OneToOneField(related_name='referral_certificate', to='irdb.ResourceHolderCA'),
+        ),
+        migrations.AddField(
+            model_name='parent',
+            name='issuer',
+            field=models.ForeignKey(related_name='parents', to='irdb.ResourceHolderCA'),
         ),
         migrations.AddField(
             model_name='hostedca',
@@ -286,6 +273,11 @@ class Migration(migrations.Migration):
             model_name='ghostbusterrequest',
             name='issuer',
             field=models.ForeignKey(related_name='ghostbuster_requests', to='irdb.ResourceHolderCA'),
+        ),
+        migrations.AddField(
+            model_name='ghostbusterrequest',
+            name='parent',
+            field=models.ForeignKey(related_name='ghostbuster_requests', to='irdb.Parent', null=True),
         ),
         migrations.AddField(
             model_name='eecertificaterequest',
@@ -328,13 +320,12 @@ class Migration(migrations.Migration):
             unique_together=set([('issuer', 'handle')]),
         ),
         migrations.AlterUniqueTogether(
+            name='parent',
+            unique_together=set([('issuer', 'handle')]),
+        ),
+        migrations.AlterUniqueTogether(
             name='hostedca',
             unique_together=set([('issuer', 'hosted')]),
-        ),
-        migrations.AddField(
-            model_name='ghostbusterrequest',
-            name='parent',
-            field=models.ForeignKey(related_name='ghostbuster_requests', to='irdb.Parent', null=True),
         ),
         migrations.AlterUniqueTogether(
             name='eecertificaterequestnet',
@@ -366,10 +357,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterUniqueTogether(
             name='bsc',
-            unique_together=set([('issuer', 'handle')]),
-        ),
-        migrations.AlterUniqueTogether(
-            name='parent',
             unique_together=set([('issuer', 'handle')]),
         ),
     ]

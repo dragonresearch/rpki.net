@@ -1,5 +1,5 @@
 # Copyright (C) 2010, 2011  SPARTA, Inc. dba Cobham Analytic Solutions
-# Copyright (C) 2012  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2016  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -31,7 +31,7 @@ class RouteOrigin(rpki.gui.models.PrefixV4):
     @property
     def roas(self):
         "Return a queryset of ROAs which cover this route."
-        return rpki.gui.cacheview.models.ROA.objects.filter(
+        return rpki.gui.gui_rpki_cache.models.ROA.objects.filter(
             prefixes__prefix_min__lte=self.prefix_min,
             prefixes__prefix_max__gte=self.prefix_max
         )
@@ -39,7 +39,7 @@ class RouteOrigin(rpki.gui.models.PrefixV4):
     @property
     def roa_prefixes(self):
         "Return a queryset of ROA prefixes which cover this route."
-        return rpki.gui.cacheview.models.ROAPrefixV4.objects.filter(
+        return rpki.gui.gui_rpki_cache.models.ROAPrefixV4.objects.filter(
             prefix_min__lte=self.prefix_min,
             prefix_max__gte=self.prefix_max
         )
@@ -78,4 +78,4 @@ class RouteOriginV6(rpki.gui.models.PrefixV6):
 
 
 # this goes at the end of the file to avoid problems with circular imports
-import rpki.gui.cacheview.models
+import rpki.gui.gui_rpki_cache.models

@@ -6,5 +6,5 @@
 # This is a POSIX shell fragment
 #
 
-# Additional options that are passed to rpki-start-servers.
-STARTER_OPTS="--log-level warning --log-directory /var/log/rpki --log-rotating-file-hours 3 --log-backup-count 56"
+# Additional arguments that are passed to rpki-nanny.
+DAEMON_ARGS=""

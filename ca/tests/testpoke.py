@@ -1,8 +1,8 @@
 # $Id$
 #
 # Copyright (C) 2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -50,8 +50,6 @@ parser.add_argument("-r", "--request",
 parser.add_argument("-d", "--debug",
                     help = "enable debugging")
 args = parser.parse_args()
-
-rpki.log.init("testpoke")
 
 yaml_data = yaml.load(args.yaml)
 

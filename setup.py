@@ -1,20 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2014  Dragon Research Labs ("DRL")
+# Copyright (C) 2015--2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2011--2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
-# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
-# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, AND ISC DISCLAIM
+# ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS, DRL, OR ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 from distutils.core import setup, Extension
 from glob import glob
@@ -60,7 +61,7 @@ if autoconf.RP_TARGET == "rp":
                  "rpki.rcynicdb",
                  "rpki.gui",
                  "rpki.gui.app",
-                 "rpki.gui.cacheview",
+                 "rpki.gui.gui_rpki_cache",
                  "rpki.gui.api",
                  "rpki.gui.routeview"]
     
@@ -104,7 +105,7 @@ if autoconf.CA_TARGET == "ca":
                                            "templates/*/*.html",
                                            "templatetags/*.py"]
 
-    package_data["rpki.gui.cacheview"]  = ["templates/*/*.html"]
+    package_data["rpki.gui.gui_rpki_cache"]  = ["migrations/*.py"]
 
 
     data_files += [(autoconf.datarootdir + "/rpki/wsgi",
@@ -118,7 +119,6 @@ if autoconf.CA_TARGET == "ca":
 
     scripts += [(autoconf.sbindir,
                  ["ca/rpkic",
-                  "ca/rpki-start-servers",
                   "ca/rpkigui-query-routes",
                   "ca/irbe_cli"]),
                 (autoconf.libexecdir,
@@ -126,6 +126,7 @@ if autoconf.CA_TARGET == "ca":
                   "ca/pubd",
                   "ca/rootd",
                   "ca/rpkid",
+                  "ca/rpki-nanny",
                   "ca/rpkigui-import-routes",
                   "ca/rpkigui-check-expired",
                   "ca/rpkigui-rcynic",

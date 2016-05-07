@@ -1,20 +1,21 @@
 # $Id$
 #
-# Copyright (C) 2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2012--2013  Internet Systems Consortium ("ISC")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2012-2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL AND ISC DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL OR
-# ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
-# DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
-# OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-# TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, AND ISC DISCLAIM
+# ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS, DRL, OR ISC BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 rpkid task objects.  Split out from rpki.left_right and rpki.rpkid
@@ -152,7 +153,7 @@ class PollParentTask(AbstractTask):
     def main(self):
         logger.debug("%r: Polling parents", self)
 
-        for parent in self.tenant.parents.all():
+        for parent in rpki.rpkidb.models.Parent.objects.filter(tenant = self.tenant):
             try:
                 logger.debug("%r: Executing list query", self)
                 list_r_msg = yield parent.up_down_list_query(rpkid = self.rpkid)
@@ -209,10 +210,10 @@ class PollParentTask(AbstractTask):
             ca.sia_uri = sia_uri
 
         rc_resources = rpki.resource_set.resource_bag(
-            rc.get("resource_set_as"),
-            rc.get("resource_set_ipv4"),
-            rc.get("resource_set_ipv6"),
-            rc.get("resource_set_notafter"))
+            asn         = rc.get("resource_set_as"),
+            v4          = rc.get("resource_set_ipv4"),
+            v6          = rc.get("resource_set_ipv6"),
+            valid_until = rc.get("resource_set_notafter"))
 
         cert_map = {}
 
@@ -307,24 +308,36 @@ class UpdateChildrenTask(AbstractTask):
                 assert child_cert.gski == child_cert.cert.gSKI()
 
                 if new_resources.empty():
-                    logger.debug("Resources shrank to the null set, revoking and withdrawing child %s certificate g(SKI) %s", child_handle, child_cert.gski)
+                    logger.debug("Resources shrank to null set, revoking and withdrawing child %s g(SKI) %s",
+                                 child_handle, child_cert.gski)
                     child_cert.revoke(publisher = publisher)
                     ca_detail.generate_crl_and_manifest(publisher = publisher)
 
-                elif old_resources != new_resources or old_aia != new_aia or (old_resources.valid_until < rsn and irdb_resources[child_handle].valid_until > now and old_resources.valid_until != irdb_resources[child_handle].valid_until):
-                    logger.debug("Need to reissue child %s certificate g(SKI) %s", child_handle, child_cert.gski)
+                elif (old_resources != new_resources or old_aia != new_aia or
+                      (old_resources.valid_until < rsn and
+                       irdb_resources[child_handle].valid_until > now and
+                       old_resources.valid_until != irdb_resources[child_handle].valid_until)):
+                    logger.debug("Need to reissue child %s certificate g(SKI) %s", child_handle,
+                                 child_cert.gski)
                     if old_resources != new_resources:
-                        logger.debug("Child %s g(SKI) %s resources changed: old %s new %s", child_handle, child_cert.gski, old_resources, new_resources)
+                        logger.debug("Child %s g(SKI) %s resources changed: old %s new %s",
+                                     child_handle, child_cert.gski, old_resources, new_resources)
                     if old_resources.valid_until != irdb_resources[child_handle].valid_until:
-                        logger.debug("Child %s g(SKI) %s validity changed: old %s new %s", child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
+                        logger.debug("Child %s g(SKI) %s validity changed: old %s new %s",
+                                     child_handle, child_cert.gski, old_resources.valid_until,
+                                     irdb_resources[child_handle].valid_until)
 
-                    new_resources.valid_until = irdb_resources.valid_until
+                    new_resources.valid_until = irdb_resources[child_handle].valid_until
                     child_cert.reissue(ca_detail = ca_detail, resources = new_resources, publisher = publisher)
 
                 elif old_resources.valid_until < now:
-                    logger.debug("Child %s certificate g(SKI) %s has expired: cert.valid_until %s, irdb.valid_until %s", child_handle, child_cert.gski, old_resources.valid_until, irdb_resources.valid_until)
+                    logger.debug("Child %s certificate g(SKI) %s has expired: cert.valid_until %s, irdb.valid_until %s",
+                                 child_handle, child_cert.gski, old_resources.valid_until,
+                                 irdb_resources[child_handle].valid_until)
                     child_cert.delete()
-                    publisher.queue(uri = child_cert.uri, old_obj = child_cert.cert, repository = ca_detail.ca.parent.repository)
+                    publisher.queue(uri = child_cert.uri,
+                                    old_obj = child_cert.cert,
+                                    repository = ca_detail.ca.parent.repository)
                     ca_detail.generate_crl_and_manifest(publisher = publisher)
 
             except:
@@ -377,7 +390,7 @@ class UpdateROAsTask(AbstractTask):
         updates = []
         publisher = rpki.rpkid.publication_queue(self.rpkid)
         ca_details = set()
-        
+
         for roa in self.tenant.roas.all():
             k = "{!s} {!s} {!s}".format(roa.asn, roa.ipv4, roa.ipv6)
             if k not in roas:
@@ -457,7 +470,7 @@ class UpdateGhostbustersTask(AbstractTask):
     @tornado.gen.coroutine
     def main(self):
         logger.debug("%r: Updating Ghostbuster records", self)
-        parent_handles = set(p.parent_handle for p in self.tenant.parents.all())
+        parent_handles = set(p.parent_handle for p in rpki.rpkidb.models.Parent.objects.filter(tenant = self.tenant))
 
         try:
             r_msg = yield self.rpkid.irdb_query_ghostbuster_requests(self.tenant.tenant_handle, parent_handles)
@@ -476,9 +489,7 @@ class UpdateGhostbustersTask(AbstractTask):
                     ghostbusters[k] = ghostbuster
 
             for r_pdu in r_msg:
-                try:
-                    self.tenant.parents.get(parent_handle = r_pdu.get("parent_handle"))
-                except rpki.rpkidb.models.Parent.DoesNotExist:
+                if not rpki.rpkidb.models.Parent.objects.filter(tenant = self.tenant, parent_handle  = r_pdu.get("parent_handle")).exists():
                     logger.warning("%r: Unknown parent_handle %r in Ghostbuster request, skipping", self, r_pdu.get("parent_handle"))
                     continue
                 k = (r_pdu.get("parent_handle"), r_pdu.text)
@@ -486,7 +497,9 @@ class UpdateGhostbustersTask(AbstractTask):
                     logger.warning("%r: Skipping duplicate Ghostbuster request %r", self, r_pdu)
                     continue
                 seen.add(k)
-                for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__parent_handle = r_pdu.get("parent_handle"), ca__parent__tenant = self.tenant, state = "active"):
+                for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(ca__parent__parent_handle = r_pdu.get("parent_handle"),
+                                                                            ca__parent__tenant = self.tenant,
+                                                                            state = "active"):
                     ghostbuster = ghostbusters.pop((ca_detail.pk, r_pdu.text), None)
                     if ghostbuster is None:
                         ghostbuster = rpki.rpkidb.models.Ghostbuster(tenant = self.tenant, ca_detail = ca_detail, vcard = r_pdu.text)
@@ -544,10 +557,10 @@ class UpdateEECertificatesTask(AbstractTask):
                 ees = existing.pop(gski, ())
 
                 resources = rpki.resource_set.resource_bag(
-                    asn         = rpki.resource_set.resource_set_as(r_pdu.get("asn")),
-                    v4          = rpki.resource_set.resource_set_ipv4(r_pdu.get("ipv4")),
-                    v6          = rpki.resource_set.resource_set_ipv6(r_pdu.get("ipv6")),
-                    valid_until = rpki.sundial.datetime.fromXMLtime(r_pdu.get("valid_until")))
+                    asn         = r_pdu.get("asn"),
+                    v4          = r_pdu.get("ipv4"),
+                    v6          = r_pdu.get("ipv6"),
+                    valid_until = r_pdu.get("valid_until"))
                 covering = self.tenant.find_covering_ca_details(resources)
                 ca_details.update(covering)
 

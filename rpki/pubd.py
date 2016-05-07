@@ -1,21 +1,22 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
-# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+# DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
+# SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+# RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+# CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 RPKI publication engine.
@@ -68,28 +69,34 @@ class main(object):
         self.cfg.add_argument("--profile",
                               default = "",
                               help = "enable profiling, saving data to PROFILE")
-        rpki.log.argparse_setup(self.cfg.argparser)
+        self.cfg.add_logging_arguments()
         args = self.cfg.argparser.parse_args()
 
         self.profile = args.profile
 
-        rpki.log.init("pubd", args)
+        self.cfg.configure_logging(args = args, ident = "pubd")
 
-        self.cfg.set_global_flags()
+        try:
+            self.cfg.set_global_flags()
 
-        if not args.foreground:
-            rpki.daemonize.daemon(pidfile = args.pidfile)
+            if not args.foreground:
+                rpki.daemonize.daemon(pidfile = args.pidfile)
 
-        if self.profile:
-            import cProfile
-            prof = cProfile.Profile()
-            try:
-                prof.runcall(self.main)
-            finally:
-                prof.dump_stats(self.profile)
-                logger.info("Dumped profile data to %s", self.profile)
-        else:
-            self.main()
+            if self.profile:
+                import cProfile
+                prof = cProfile.Profile()
+                try:
+                    prof.runcall(self.main)
+                finally:
+                    prof.dump_stats(self.profile)
+                    logger.info("Dumped profile data to %s", self.profile)
+            else:
+                self.main()
+
+        except:
+            logger.exception("Unandled exception in rpki.pubd.main()")
+            sys.exit(1)
+
 
     def main(self):
 

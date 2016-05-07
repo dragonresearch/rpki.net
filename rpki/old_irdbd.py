@@ -1,21 +1,22 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
-# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+# DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
+# SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+# RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+# CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 IR database daemon.
@@ -273,17 +274,13 @@ class main(object):
         os.environ["TZ"] = "UTC"
         time.tzset()
 
-        parser = argparse.ArgumentParser(description = __doc__)
-        parser.add_argument("-c", "--config",
-                            help = "override default location of configuration file")
-        parser.add_argument("-f", "--foreground", action = "store_true",
-                            help = "do not daemonize (ignored, old_irdbd never daemonizes)")
-        rpki.log.argparse_setup(parser)
+        self.cfg = rpki.config.argparser(section = "irdbd", doc = __doc__)
+        self.cfg.add_boolean_argument("--foreground", default = False,
+                                      help = "do not daemonize (ignored, old_irdbd never daemonizes)")
+        self.cfg.add_logging_arguments()
         args = parser.parse_args()
 
-        rpki.log.init("irdbd", args)
-
-        self.cfg = rpki.config.parser(set_filename = args.config, section = "irdbd")
+        cfg.configure_logging(args = args, ident = "irdbd")
 
         startup_msg = self.cfg.get("startup-message", "")
         if startup_msg:

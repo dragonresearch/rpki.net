@@ -1,4 +1,4 @@
-# Copyright (C) 2013  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2013, 2016  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -26,9 +26,7 @@ def setup():
 
     import os
 
-    # If this doesn't work, try changing it to "rpki.django_settings.gui".
-    os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.irdb")
-    #os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui")
+    os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui")
 
     # Initialize Django.
     import django

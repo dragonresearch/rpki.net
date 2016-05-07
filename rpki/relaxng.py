@@ -8,26 +8,27 @@ from rpki.relaxng_parser import RelaxNGParser
 ## Parsed RelaxNG left_right schema
 left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: left-right.rnc 6137 2015-10-20 19:21:37Z sra $
+  $Id$
   
   RelaxNG schema for RPKI left-right protocol.
   
-  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
-  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
-  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+  Portions copyright (C) 2012-2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
   copyright notices and this permission notice appear in all copies.
   
-  THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
-  WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-  WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
-  ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-  CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-  OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
-  WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+  DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
+  SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+  RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+  CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+  CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/left-right-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <define name="version">
@@ -554,6 +555,21 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </attribute>
     </optional>
     <optional>
+      <attribute name="root_asn_resources">
+        <ref name="asn_list"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="root_ipv4_resources">
+        <ref name="ipv4_list"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="root_ipv6_resources">
+        <ref name="ipv6_list"/>
+      </attribute>
+    </optional>
+    <optional>
       <element name="bpki_cert">
         <ref name="base64"/>
       </element>
@@ -564,6 +580,13 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       </element>
     </optional>
   </define>
+  <define name="parent_readonly">
+    <optional>
+      <element name="rpki_root_cert">
+        <ref name="base64"/>
+      </element>
+    </optional>
+  </define>
   <define name="parent_query" combine="choice">
     <element name="parent">
       <ref name="ctl_create"/>
@@ -578,6 +601,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="ctl_create"/>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
@@ -594,6 +618,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="ctl_set"/>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
@@ -609,6 +634,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_payload"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
@@ -623,6 +649,7 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
       <ref name="tenant_handle"/>
       <ref name="parent_handle"/>
       <ref name="parent_payload"/>
+      <ref name="parent_readonly"/>
     </element>
   </define>
   <define name="parent_query" combine="choice">
@@ -1662,13 +1689,13 @@ oob_setup = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 ## Parsed RelaxNG publication_control schema
 publication_control = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-control.rnc 5903 2014-07-18 17:08:13Z sra $
+  $Id$
   
   RelaxNG schema for RPKI publication protocol.
   
-  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
-  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
-  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2012-2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above

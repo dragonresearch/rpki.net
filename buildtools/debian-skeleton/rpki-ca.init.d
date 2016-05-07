@@ -10,21 +10,35 @@
 
 # Author: Rob Austein <sra@hactrn.net>
 
-# PATH should only include /usr/* if it runs after the mountnfs.sh script
+# Copyright (C) 2016  Parsons Government Services ("PARSONS")
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS DISCLAIMS ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="rpki-ca"
-NAME=rpki-ca
+NAME=rpki-nanny
 PIDDIR=/var/run/rpki
 LOGDIR=/var/log/rpki
-STARTER=/usr/sbin/rpki-start-servers
-STARTER_OPTS="--log-level warning --log-directory $LOGDIR --log-rotating-file-hours 3 --log-backup-count 56"
-SCRIPTNAME=/etc/init.d/$NAME
+DAEMON=/usr/lib/rpki/$NAME
+SCRIPTNAME=/etc/init.d/rpki-ca
+PIDFILE=$PIDDIR/$NAME.pid
 
 # Exit if the package is not installed
-test -x "$STARTER" || exit 0
+test -x "$DAEMON" || exit 0
 
 # Read configuration variable file if it is present
-test -r /etc/default/$NAME && . /etc/default/$NAME
+test -r /etc/default/rpki-ca && . /etc/default/rpki-ca
 
 # Load the VERBOSE setting and other rcS variables
 . /lib/init/vars.sh
@@ -33,38 +47,6 @@ test -r /etc/default/$NAME && . /etc/default/$NAME
 # Depend on lsb-base (>= 3.2-14) to ensure that this file is present
 # and status_of_proc is working.
 . /lib/lsb/init-functions
-
-#
-# Extract list of enabled RPKI daemons from config file.
-#
-
-enabled_daemons()
-{
-    python -c 'if True:
-        import rpki.config
-        cfg = rpki.config.parser(section = "myrpki")
-        enabled = [name for name in ("rpkid", "irdbd", "pubd", "rootd")
-                   if cfg.getboolean("run_{}".format("rpkid" if name == "irdbd" else name))]
-        for name in sorted(enabled):
-            print name
-    '
-}
-
-#
-# Figure out which daemons are actually running at the moment.
-#
-
-running_daemons()
-{
-    for pidfile in $PIDDIR/*.pid
-    do
-	test -f "$pidfile" || continue
-	cmdline=/proc/$(cat $pidfile)/cmdline
-	name=${pidfile##*/}
-	test -f $cmdline &&
-	awk -v name=${name%.pid} 'BEGIN {FS="\0"} $2 ~ ("/" name "$") {print name}' $cmdline
-    done
-}
 
 #
 # Function that starts the daemon/service
@@ -78,45 +60,13 @@ do_start()
 
     test -f /etc/rpki.conf || return 2
 
-    enabled="$(enabled_daemons)"
-    running="$(running_daemons)"
+    for dir in $PIDDIR $LOGDIR /usr/share/rpki/publication /usr/share/rpki/rrdp-publication
+    do
+	test -d $dir || install -d -o rpki -g rpki $dir || return 2
+    done
 
-    test "X$enabled" = "X" && return 0
-    test "X$enabled" = "X$running" && return 1
-
-    test -d $PIDDIR || install -d -o rpki -g rpki $PIDDIR || return 2
-    test -d $LOGDIR || install -d -o rpki -g rpki $LOGDIR || return 2
-
-    test -f /usr/share/rpki/bpki/ca.cer   || return 2
-    test -f /usr/share/rpki/bpki/irbe.cer || return 2
-
-    case $enabled in
-	*rpkid*)
-	    test -f /usr/share/rpki/bpki/irdbd.cer || return 2
-	    test -f /usr/share/rpki/bpki/rpkid.cer || return 2
-	    test -f /usr/share/rpki/bpki/rpkid.key || return 2
-    esac
-
-    case $enabled in
-	*pubd*)
-	    test -f /usr/share/rpki/bpki/pubd.cer || return 2
-	    test -f /usr/share/rpki/bpki/pubd.key || return 2
-
-	    for dir in /usr/share/rpki/publication /usr/share/rpki/rrdp-publication
-	    do
-		test -d $dir || install -d -o rpki -g rpki $dir || return 2
-	    done
-    esac
-
-    case $enabled in
-	*rootd*)
-	    test -f /usr/share/rpki/bpki/rootd.cer || return 2
-	    test -f /usr/share/rpki/bpki/rootd.key || return 2
-	    test -f /usr/share/rpki/root.cer       || return 2
-	    test -f /usr/share/rpki/root.key       || return 2
-    esac
-
-    $STARTER $STARTER_OPTS || return 2
+    start-stop-daemon --start --quiet --pidfile $PIDFILE --startas $DAEMON --name $NAME --test > /dev/null || return 1
+    start-stop-daemon --start --quiet --pidfile $PIDFILE --startas $DAEMON --name $NAME -- $DAEMON_ARGS    || return 2
 }
 
 #
@@ -130,15 +80,7 @@ do_stop()
     #   2 if daemon could not be stopped
     #   other if a failure occurred
 
-    running="$(running_daemons)"
-
-    test "X$running" = "X" && return 1
-
-    for name in $running
-    do
-	kill $(cat $PIDDIR/$name.pid)
-    done
-    return 0
+    start-stop-daemon --stop --quiet --oknodo --retry=TERM/30/KILL/5 --pidfile $PIDFILE --name $NAME
 }
 
 case "$1" in
@@ -159,20 +101,7 @@ case "$1" in
 	esac
 	;;
     status)
-	enabled="$(enabled_daemons)"
-	running="$(running_daemons)"
-	if test "X$running" = "X"
-	then
-	    log_success_msg "rpki-ca is not running"
-	    exit 3
-	elif test "X$running" = "X$enabled"
-	then
-	    log_success_msg "rpki-ca is running"
-	    exit 0
-	else
-	    log_success_msg "some rpki-ca daemons are running"
-	    exit 4
-	fi
+	status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
 	;;
     restart|force-reload)
 	log_daemon_msg "Restarting $DESC" "$NAME"

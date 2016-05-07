@@ -1,3 +1,18 @@
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notices and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS DISCLAIMS ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 """
 Django ORM models for rpkid.
 """
@@ -16,6 +31,7 @@ import tornado.httpserver
 from django.db import models
 
 import rpki.left_right
+import rpki.sundial
 
 from rpki.fields import (EnumField, SundialField,
                          CertificateField, RSAPrivateKeyField,
@@ -63,6 +79,7 @@ class XMLTemplate(object):
 
     element_type = dict(bpki_cert        = rpki.x509.X509,
                         bpki_glue        = rpki.x509.X509,
+                        rpki_root_cert   = rpki.x509.X509,
                         pkcs10_request   = rpki.x509.PKCS10,
                         signing_cert     = rpki.x509.X509,
                         signing_cert_crl = rpki.x509.CRL)
@@ -112,11 +129,6 @@ class XMLTemplate(object):
         """
         Add an acknowledgement PDU in response to a create, set, or
         destroy action.
-
-        This includes a bit of special-case code for BSC objects which has
-        to go somewhere; we could handle it via some kind method of
-        call-out to the BSC model, but it's not worth building a general
-        mechanism for one case, so we do it inline and have done.
         """
 
         assert q_pdu.tag == rpki.left_right.xmlns + self.name
@@ -127,9 +139,11 @@ class XMLTemplate(object):
         r_pdu.set(self.name + "_handle", getattr(obj, self.name + "_handle"))
         if q_pdu.get("tag"):
             r_pdu.set("tag", q_pdu.get("tag"))
-        if self.name == "bsc" and action != "destroy" and obj.pkcs10_request is not None:
-            assert not obj.pkcs10_request.empty()
-            SubElement(r_pdu, rpki.left_right.xmlns + "pkcs10_request").text = obj.pkcs10_request.get_Base64()
+        if action != "destroy":
+            for k in self.readonly:
+                v = getattr(obj, k)
+                if v is not None and not v.empty():
+                    SubElement(r_pdu, rpki.left_right.xmlns + k).text = v.get_Base64()
         if self.debug:
             logger.debug("XMLTemplate.acknowledge(): %s", ElementToString(r_pdu))
 
@@ -517,7 +531,7 @@ class Repository(models.Model):
             body            = rpki.publication.cms_msg().wrap(q_msg, self.bsc.private_key_id,
                                                               self.bsc.signing_cert, self.bsc.signing_cert_crl),
             headers         = { "Content-Type" : rpki.publication.content_type },
-            connect_timeout = rpkid.http_client_timeout, 
+            connect_timeout = rpkid.http_client_timeout,
             request_timeout = rpkid.http_client_timeout)
         http_response = yield rpkid.http_fetch(http_request)
         if http_response.headers.get("Content-Type") not in rpki.publication.allowed_content_types:
@@ -540,6 +554,8 @@ class Repository(models.Model):
 @xml_hooks
 class Parent(models.Model):
     parent_handle = models.SlugField(max_length = 255)
+    tenant = models.ForeignKey(Tenant, related_name = "parents")
+    repository = models.ForeignKey(Repository, related_name = "parents")
     bpki_cert = CertificateField(null = True)
     bpki_glue = CertificateField(null = True)
     peer_contact_uri = models.TextField(null = True)
@@ -547,9 +563,10 @@ class Parent(models.Model):
     sender_name = models.TextField(null = True)
     recipient_name = models.TextField(null = True)
     last_cms_timestamp = SundialField(null = True)
-    tenant = models.ForeignKey(Tenant, related_name = "parents")
     bsc = models.ForeignKey(BSC, related_name = "parents")
-    repository = models.ForeignKey(Repository, related_name = "parents")
+    root_asn_resources = models.TextField(default = "")
+    root_ipv4_resources = models.TextField(default = "")
+    root_ipv6_resources = models.TextField(default = "")
     objects = XMLManager()
 
     class Meta:
@@ -558,8 +575,11 @@ class Parent(models.Model):
     xml_template = XMLTemplate(
         name       = "parent",
         handles    = (BSC, Repository),
-        attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name"),
-        elements   = ("bpki_cert", "bpki_glue"))
+        attributes = ("peer_contact_uri", "sia_base", "sender_name", "recipient_name",
+                      "root_asn_resources", "root_ipv4_resources", "root_ipv6_resources"),
+        elements   = ("bpki_cert", "bpki_glue"),
+        readonly   = ("rpki_root_cert",))
+
 
     def __repr__(self):
         try:
@@ -571,6 +591,15 @@ class Parent(models.Model):
         except:
             return "<Parent: Parent object>"
 
+    @property
+    def rpki_root_cert(self):
+        if self.root_asn_resources or self.root_ipv4_resources or self.root_ipv6_resources:
+            logger.debug("%r checking for rpki_root_cert", self)
+            try:
+                return CADetail.objects.get(ca__parent = self, state = "active").latest_ca_cert
+            except CADetail.DoesNotExist:
+                pass
+        return None
 
     @tornado.gen.coroutine
     def xml_pre_delete_hook(self, rpkid):
@@ -683,15 +712,17 @@ class Parent(models.Model):
         """
 
         trace_call_chain()
-        yield [ca.destroy(rpkid = rpkid, parent = self) for ca in self.cas()] # pylint: disable=E1101
         yield self.serve_revoke_forgotten(rpkid = rpkid)
+        yield [ca.destroy(rpkid = rpkid, parent = self)
+               for ca in self.cas().all()]
         if delete_parent:
             self.delete()
 
 
     def _compose_up_down_query(self, query_type):
-        return Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap, version = rpki.up_down.version,
-                       sender  = self.sender_name, recipient = self.recipient_name, type = query_type)
+        return Element(rpki.up_down.tag_message, nsmap = rpki.up_down.nsmap,
+                       version = rpki.up_down.version, type = query_type,
+                       sender  = self.sender_name, recipient = self.recipient_name)
 
 
     @tornado.gen.coroutine
@@ -719,6 +750,7 @@ class Parent(models.Model):
         r_msg = yield self.query_up_down(rpkid, q_msg)
         raise tornado.gen.Return(r_msg)
 
+
     @tornado.gen.coroutine
     def up_down_revoke_query(self, rpkid, class_name, ski):
         trace_call_chain()
@@ -731,26 +763,173 @@ class Parent(models.Model):
     @tornado.gen.coroutine
     def query_up_down(self, rpkid, q_msg):
         trace_call_chain()
-        if self.bsc is None:
+        #logger.debug("%r query_up_down(): %s", self, ElementToString(q_msg))
+        if self.root_asn_resources or self.root_ipv4_resources or self.root_ipv6_resources:
+            r_msg = yield self.query_up_down_root(rpkid, q_msg)
+        elif self.bsc is None:
             raise rpki.exceptions.BSCNotFound("Could not find BSC")
-        if self.bsc.signing_cert is None:
+        elif self.bsc.signing_cert is None:
             raise rpki.exceptions.BSCNotReady("%r is not yet usable" % self.bsc)
-        http_request = tornado.httpclient.HTTPRequest(
-            url             = self.peer_contact_uri,
-            method          = "POST",
-            body            = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id,
-                                                          self.bsc.signing_cert, self.bsc.signing_cert_crl),
-            headers         = { "Content-Type" : rpki.up_down.content_type },
-            connect_timeout = rpkid.http_client_timeout, 
-            request_timeout = rpkid.http_client_timeout)
-        http_response = yield rpkid.http_fetch(http_request)
-        if http_response.headers.get("Content-Type") not in rpki.up_down.allowed_content_types:
-            raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (
-                rpki.up_down.content_type, http_response.headers.get("Content-Type")))
-        r_cms = rpki.up_down.cms_msg(DER = http_response.body)
-        r_msg = r_cms.unwrap((rpkid.bpki_ta, self.tenant.bpki_cert, self.tenant.bpki_glue, self.bpki_cert, self.bpki_glue))
-        r_cms.check_replay_sql(self, self.peer_contact_uri)
+        else:
+            http_request = tornado.httpclient.HTTPRequest(
+                url             = self.peer_contact_uri,
+                method          = "POST",
+                body            = rpki.up_down.cms_msg().wrap(q_msg, self.bsc.private_key_id,
+                                                              self.bsc.signing_cert,
+                                                              self.bsc.signing_cert_crl),
+                headers         = { "Content-Type" : rpki.up_down.content_type },
+                connect_timeout = rpkid.http_client_timeout,
+                request_timeout = rpkid.http_client_timeout)
+            http_response = yield rpkid.http_fetch(http_request)
+            if http_response.headers.get("Content-Type") not in rpki.up_down.allowed_content_types:
+                raise rpki.exceptions.BadContentType("HTTP Content-Type %r, expected %r" % (
+                    rpki.up_down.content_type, http_response.headers.get("Content-Type")))
+            r_cms = rpki.up_down.cms_msg(DER = http_response.body)
+            r_msg = r_cms.unwrap((rpkid.bpki_ta,
+                                  self.tenant.bpki_cert, self.tenant.bpki_glue,
+                                  self.bpki_cert, self.bpki_glue))
+            r_cms.check_replay_sql(self, self.peer_contact_uri)
+        #logger.debug("%r query_up_down(): %s", self, ElementToString(r_msg))
         rpki.up_down.check_response(r_msg, q_msg.get("type"))
+        raise tornado.gen.Return(r_msg)
+
+
+    @tornado.gen.coroutine
+    def query_up_down_root(self, rpkid, q_msg):
+        """
+        Internal RPKI root, divered from the normal up_down client.
+
+        While it looks a bit silly, the simplest way to drop this in
+        without rewriting all of the up-down client code is to
+        implement a minimal version of the server side of the up-down
+        protocol here, XML and all.  This has the additional advantage
+        of using a well-defined protocol, one with a formal schema,
+        even.  Yes, there's a bit of XML overhead, but we'd be paying
+        that in any case for an external root, so it's just a minor
+        optimization we've chosen not to take.
+
+        We do skip the CMS wrapper, though, since this is all internal
+        not just to a single Tenant but to a single Parent.
+        """
+
+        trace_call_chain()
+        publisher = rpki.rpkid.publication_queue(rpkid = rpkid)
+
+        r_msg = Element(rpki.up_down.tag_message,
+                        nsmap     = rpki.up_down.nsmap,
+                        version   = rpki.up_down.version,
+                        sender    = self.recipient_name,
+                        recipient = self.sender_name)
+
+        try:
+
+            if q_msg.get("type") == "revoke":
+                ca_detail = CADetail.objects.get(
+                    ca__parent                = self,
+                    state__in                 = ("active", "deprecated"),
+                    ca__parent_resource_class = q_msg[0].get("class_name"),
+                    ca_cert_uri__endswith     = q_msg[0].get("ski") + ".cer")
+                publisher.queue(
+                    uri        = ca_detail.ca_cert_uri,
+                    old_obj    = ca_detail.latest_ca_cert.certificate,
+                    repository = self.repository)
+                yield publisher.call_pubd()
+                r_msg.set("type", "revoke_response")
+                SubElement(r_msg, rpki.up_down.tag_key,
+                           class_name = q_msg[0].get("class_name"),
+                           ski        = q_msg[0].get("ski"))
+
+            else:               # Not revocation
+
+                notAfter = rpki.sundial.now() + rpki.sundial.timedelta.parse(
+                    rpkid.cfg.get("rpki-root-certificate-lifetime", "1y"))
+
+                bag = rpki.resource_set.resource_bag(
+                    asn         = self.root_asn_resources,
+                    v4          = self.root_ipv4_resources,
+                    v6          = self.root_ipv6_resources,
+                    valid_until = notAfter)
+
+                rc = SubElement(
+                    r_msg, rpki.up_down.tag_class,
+                    class_name            = self.parent_handle,
+                    cert_url              = self.sia_base + "root.cer",
+                    resource_set_as       = str(bag.asn),
+                    resource_set_ipv4     = str(bag.v4),
+                    resource_set_ipv6     = str(bag.v6),
+                    resource_set_notafter = str(bag.valid_until))
+
+                if q_msg.get("type") == "list":
+                    r_msg.set("type", "list_response")
+                    for ca_detail in CADetail.objects.filter(
+                            ca__parent = self,
+                            state__in  = ("active", "deprecated"),
+                            ca__parent_resource_class = self.parent_handle):
+                        uri = self.sia_base + ca_detail.latest_ca_cert.gSKI() + ".cer"
+                        SubElement(rc, rpki.up_down.tag_certificate,
+                                   cert_url = uri).text = ca_detail.latest_ca_cert.get_Base64()
+
+                else:
+                    assert q_msg.get("type") == "issue"
+                    r_msg.set("type", "issue_response")
+                    pkcs10 = rpki.x509.PKCS10(Base64 = q_msg[0].text)
+                    pkcs10_key  = pkcs10.getPublicKey()
+                    pkcs10_sia  = pkcs10.get_SIA()
+                    pkcs10_gski = pkcs10_key.gSKI()
+
+                    uri = self.sia_base + pkcs10_gski + ".cer"
+
+                    ca_details = dict(
+                        (ca_detail.public_key.gSKI(), ca_detail)
+                        for ca_detail in CADetail.objects.filter(
+                                ca__parent                = self,
+                                ca__parent_resource_class = q_msg[0].get("class_name"),
+                                state__in                 = ("pending", "active")))
+
+                    ca_detail = ca_details[pkcs10_gski]
+
+                    threshold = rpki.sundial.now() + rpki.sundial.timedelta(
+                        seconds = self.tenant.regen_margin)
+
+                    need_to_issue = (
+                        ca_detail.state                       == "pending"  or
+                        ca_detail.public_key                  != pkcs10_key or
+                        ca_detail.latest_ca_cert.get_SIA()    != pkcs10_sia or
+                        ca_detail.latest_ca_cert.getNotAfter() < threshold)
+
+                    if need_to_issue:
+                        cert = rpki.x509.X509.self_certify(
+                            keypair     = ca_detail.private_key_id,
+                            subject_key = pkcs10_key,
+                            serial      = ca_detail.ca.next_serial_number(),
+                            sia         = pkcs10_sia,
+                            notAfter    = bag.valid_until,
+                            resources   = bag)
+                        publisher.queue(
+                            uri        = uri,
+                            new_obj    = cert,
+                            repository = self.repository)
+                        yield publisher.call_pubd()
+                        logger.debug("%r Internal root issued, old CADetail %r, new cert %r",
+                                     self, ca_detail, cert)
+                    else:
+                        cert = ca_detail.latest_ca_cert
+
+                    SubElement(rc, rpki.up_down.tag_certificate,
+                               cert_url = uri).text = cert.get_Base64()
+
+                SubElement(rc, rpki.up_down.tag_issuer)
+
+        except tornado.gen.Return:
+            raise
+
+        except:
+            logger.exception("%r Up-down %s query to internal root failed:",
+                             self, q_msg.get("type"))
+            del r_msg[:]
+            r_msg.set("type", "error_response")
+            SubElement(r_msg, rpki.up_down.tag_status).text = "2001"
+
         raise tornado.gen.Return(r_msg)
 
 
@@ -774,7 +953,7 @@ class CA(models.Model):
     last_crl_manifest_number = models.BigIntegerField(default = 1)
     last_issued_sn = models.BigIntegerField(default = 1)
     sia_uri = models.TextField(null = True)
-    parent_resource_class = models.TextField(null = True)                 # Not sure this should allow NULL
+    parent_resource_class = models.TextField(null = True) # Not sure this should allow NULL
     parent = models.ForeignKey(Parent, related_name = "cas")
 
     # So it turns out that there's always a 1:1 mapping between the
@@ -787,16 +966,6 @@ class CA(models.Model):
     # response; if not present, we'd use parent's class_name as now,
     # otherwise we'd use the supplied class_name.
 
-    # ca_obj had a zillion properties encoding various specialized
-    # ca_detail queries.  ORM query syntax renders this OBE, but need
-    # to translate in existing code.
-    #
-    #def pending_ca_details(self):                  return self.ca_details.filter(state = "pending")
-    #def active_ca_detail(self):                    return self.ca_details.get(state = "active")
-    #def deprecated_ca_details(self):               return self.ca_details.filter(state = "deprecated")
-    #def active_or_deprecated_ca_details(self):     return self.ca_details.filter(state__in = ("active", "deprecated"))
-    #def revoked_ca_details(self):                  return self.ca_details.filter(state = "revoked")
-    #def issue_response_candidate_ca_details(self): return self.ca_details.exclude(state = "revoked")
 
     def __repr__(self):
         try:
@@ -1277,11 +1446,17 @@ class CADetail(models.Model):
             nextUpdate          = nextUpdate,
             revokedCertificates = certlist)
 
+        # XXX
+        logger.debug("%r Generating manifest, child_certs_all(): %r", self, self.child_certs.all())
+
         objs = [(self.crl_uri_tail, self.latest_crl)]
         objs.extend((c.uri_tail, c.cert)        for c in self.child_certs.all())
         objs.extend((r.uri_tail, r.roa)         for r in self.roas.filter(roa__isnull = False))
         objs.extend((g.uri_tail, g.ghostbuster) for g in self.ghostbusters.all())
         objs.extend((e.uri_tail, e.cert)        for e in self.ee_certificates.all())
+
+        # XXX
+        logger.debug("%r Generating manifest, objs: %r", self, objs)
 
         self.latest_manifest = rpki.x509.SignedManifest.build(
             serial         = crl_manifest_number,
@@ -1525,18 +1700,22 @@ class Child(models.Model):
         req = q_msg[0]
         assert req.tag == rpki.up_down.tag_request
 
-        # Subsetting not yet implemented, this is the one place where we have to handle it, by reporting that we're lame.
+        # Subsetting not yet implemented, this is the one place where
+        # we have to handle it, by reporting that we're lame.
 
-        if any(req.get(a) for a in ("req_resource_set_as", "req_resource_set_ipv4", "req_resource_set_ipv6")):
+        if any(req.get(a) for a in ("req_resource_set_as",
+                                    "req_resource_set_ipv4", "req_resource_set_ipv6")):
             raise rpki.exceptions.NotImplementedYet("req_* attributes not implemented yet, sorry")
 
         class_name = req.get("class_name")
         pkcs10 = rpki.x509.PKCS10(Base64 = req.text)
         pkcs10.check_valid_request_ca()
-        ca_detail = CADetail.objects.get(ca__parent__tenant = self.tenant, state = "active",
-                                         ca__parent_resource_class = class_name)
+        ca_detail = CADetail.objects.get(ca__parent__tenant = self.tenant,
+                                         ca__parent_resource_class = class_name,
+                                         state = "active")
 
-        irdb_resources = yield rpkid.irdb_query_child_resources(self.tenant.tenant_handle, self.child_handle)
+        irdb_resources = yield rpkid.irdb_query_child_resources(self.tenant.tenant_handle,
+                                                                self.child_handle)
 
         if irdb_resources.valid_until < rpki.sundial.now():
             raise rpki.exceptions.IRDBExpired("IRDB entry for child %s expired %s" % (
@@ -1709,6 +1888,8 @@ class ChildCert(models.Model):
             resources = old_resources
         if sia is None:
             sia = old_sia
+        if len(sia) < 4 or not sia[3]:
+            sia = (sia[0], sia[1], sia[2], ca_detail.ca.parent.repository.rrdp_notification_uri)
         assert resources.valid_until is not None and old_resources.valid_until is not None
         if resources.asn != old_resources.asn or resources.v4 != old_resources.v4 or resources.v6 != old_resources.v6:
             logger.debug("Resources changed for %r: old %s new %s", self, old_resources, resources)

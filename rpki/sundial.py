@@ -1,6 +1,6 @@
 # $Id$
 #
-# Copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
+# Copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,7 @@
 # OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 #
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -235,7 +235,7 @@ class timedelta(pydatetime.timedelta):
         Parse text into a timedelta object.
         """
 
-        if not isinstance(arg, str):
+        if not isinstance(arg, (str, unicode)):
             return cls(seconds = arg)
         elif arg.isdigit():
             return cls(seconds = int(arg))

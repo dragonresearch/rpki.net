@@ -1,4 +1,4 @@
-# Copyright (C) 2012, 2013  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2013, 2016  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -24,20 +24,13 @@ import urlparse
 import bz2
 from urllib import urlretrieve, unquote
 
-from django.db import transaction, connection
+from django.db import transaction
 from django.conf import settings
 
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
 from rpki.exceptions import BadIPResource
 import rpki.gui.app.timestamp
-
-try:
-    import _mysql_exceptions
-except ImportError:
-    class MySQLWarning(Exception):
-        "Dummy, nothing will ever raise this."
-else:
-    MySQLWarning = _mysql_exceptions.Warning
+from rpki.gui.routeview.models import RouteOrigin
 
 # globals
 logger = logging.getLogger(__name__)
@@ -50,28 +43,17 @@ class ParseError(Exception): pass
 class RouteDumpParser(object):
     """Base class for parsing various route dump formats."""
 
-    table = 'routeview_routeorigin'
-    sql = "INSERT INTO %s_new SET asn=%%s, prefix_min=%%s, prefix_max=%%s" % table
     range_class = resource_range_ipv4
 
     def __init__(self, path, *args, **kwargs):
+        transaction.set_autocommit(False)
+
         self.path = path
-        self.cursor = connection.cursor()
         self.last_prefix = None
         self.asns = set()
 
     def parse(self):
-        try:
-            logger.info('Dropping existing staging table...')
-            self.cursor.execute('DROP TABLE IF EXISTS %s_new' % self.table)
-        except MySQLWarning:
-            pass
-
-        logger.info('Creating staging table...')
-        self.cursor.execute('CREATE TABLE %(table)s_new LIKE %(table)s' % {'table': self.table})
-
-        logger.info('Disabling autocommit...')
-        self.cursor.execute('SET autocommit=0')
+        RouteOrigin.objects.all().delete()
 
         logger.info('Adding rows to table...')
         for line in self.input:
@@ -95,24 +77,12 @@ class RouteDumpParser(object):
 
         self.ins_routes() # process data from last line
 
-        logger.info('Committing...')
-        self.cursor.execute('COMMIT')
-
-        try:
-            logger.info('Dropping old table...')
-            self.cursor.execute('DROP TABLE IF EXISTS %s_old' % self.table)
-        except MySQLWarning:
-            pass
-
-        logger.info('Swapping staging table with live table...')
-        self.cursor.execute('RENAME TABLE %(table)s TO %(table)s_old, %(table)s_new TO %(table)s' % {'table': self.table})
-
         self.cleanup()  # allow cleanup function to throw prior to COMMIT
-
-        transaction.commit_unless_managed()
 
         logger.info('Updating timestamp metadata...')
         rpki.gui.app.timestamp.update('bgp_v4_import')
+
+        transaction.commit() # not sure if requried, or if transaction.commit() will do it
 
     def parse_line(self, row):
         "Parse one line of input. Return a (prefix, origin_as) tuple."
@@ -126,9 +96,8 @@ class RouteDumpParser(object):
         if self.last_prefix is not None:
             try:
                 rng = self.range_class.parse_str(self.last_prefix)
-                rmin = long(rng.min)
-                rmax = long(rng.max)
-                self.cursor.executemany(self.sql, [(asn, rmin, rmax) for asn in self.asns])
+                for asn in self.asns:
+                    RouteOrigin.objects.create(asn=asn, prefix_min=rng.min, prefix_max=rng.max)
             except BadIPResource:
                 logger.warning('skipping bad prefix: ' + self.last_prefix)
             self.asns = set() # reset
@@ -157,6 +126,10 @@ class TextDumpParser(RouteDumpParser):
             raise ParseError('unexpected format')
         except ValueError:
             raise ParseError('bad AS value')
+
+        # FIXME Django doesn't have a field for positive integers up to 2^32-1
+	if origin_as < 0 or origin_as > 2147483647:
+	    raise ParseError('AS value out of supported database range')
 
         prefix = cols[1]
 
@@ -236,10 +209,8 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='text'):
 
             logger.info("Downloading %s to %s", filename, tmpname)
             if os.path.exists(tmpname):
-                os.remove(tmpname)
-            # filename is replaced with a local filename containing cached copy of
-            # URL
-            filename, headers = urlretrieve(filename, tmpname)
+		os.remove(tmpname)
+	    filename, headers = urlretrieve(filename, tmpname)
 
         try:
             dispatch = {'text': TextDumpParser, 'mrt': MrtDumpParser}

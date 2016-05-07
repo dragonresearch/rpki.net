@@ -2,19 +2,21 @@
 #
 # $Id$
 #
-# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 #
-# Permission to use, copy, modify, and/or distribute this software for any
+# Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS AND DRL DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS OR DRL BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Searches authenticated result tree from an rcynic run for ROAs
@@ -25,6 +27,7 @@ import os
 import argparse
 import rpki.POW
 import rpki.oids
+import rpki.config
 
 
 def check_dir(s):
@@ -135,15 +138,15 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
         print
 
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("-a", "--all", action = "store_true", help = "show all ROAs, do no prefix matching at all")
-parser.add_argument("-m", "--match-maxlength", action = "store_true", help = "pay attention to maxLength values")
-parser.add_argument("-e", "--show-expiration", action = "store_true", help = "show ROA chain expiration dates")
-parser.add_argument("-f", "--show-filenames", action = "store_true", help = "show filenames instead of URIs")
-parser.add_argument("-i", "--show-inception", action = "store_true", help = "show inception dates")
-parser.add_argument("rcynic_dir", type = check_dir, help = "rcynic authenticated output directory")
-parser.add_argument("prefixes", type = Prefix, nargs = "*", help = "ROA prefix(es) to match")
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc =  __doc__)
+cfg.argparser.add_argument("-a", "--all", action = "store_true", help = "show all ROAs, do no prefix matching at all")
+cfg.argparser.add_argument("-m", "--match-maxlength", action = "store_true", help = "pay attention to maxLength values")
+cfg.argparser.add_argument("-e", "--show-expiration", action = "store_true", help = "show ROA chain expiration dates")
+cfg.argparser.add_argument("-f", "--show-filenames", action = "store_true", help = "show filenames instead of URIs")
+cfg.argparser.add_argument("-i", "--show-inception", action = "store_true", help = "show inception dates")
+cfg.argparser.add_argument("rcynic_dir", type = check_dir, help = "rcynic authenticated output directory")
+cfg.argparser.add_argument("prefixes", type = Prefix, nargs = "*", help = "ROA prefix(es) to match")
+args = cfg.argparser.parse_args()
 
 # If there's some way to automate this in the parser, I don't know what it is, so just catch it here.
 if args.all != (not args.prefixes):

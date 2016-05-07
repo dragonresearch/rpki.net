@@ -1,21 +1,22 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
 # copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
-# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
-# ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
-# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+# DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
+# SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+# RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+# CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 IR database daemon.
@@ -35,11 +36,15 @@ import rpki.log
 import rpki.x509
 import rpki.daemonize
 
-from lxml.etree import Element, SubElement
+from lxml.etree import Element, SubElement, tostring as ElementToString
 
 logger = logging.getLogger(__name__)
 
 class main(object):
+
+    # Whether to drop XMl into the log
+
+    debug = False
 
     def handle_list_resources(self, q_pdu, r_msg):
         tenant_handle = q_pdu.get("tenant_handle")
@@ -117,6 +122,8 @@ class main(object):
             q_cms = rpki.left_right.cms_msg(DER = q_der)
             q_msg = q_cms.unwrap((serverCA.certificate, rpkid.certificate))
             self.cms_timestamp = q_cms.check_replay(self.cms_timestamp, request.path)
+            if self.debug:
+                logger.debug("Received: %s", ElementToString(q_msg))
             if q_msg.get("type") != "query":
                 raise rpki.exceptions.BadQuery("Message type is {}, expected query".format(
                     q_msg.get("type")))
@@ -134,6 +141,8 @@ class main(object):
                 if q_pdu.get("tag") is not None:
                     r_pdu.set("tag", q_pdu.get("tag"))
 
+            if self.debug:
+                logger.debug("Sending: %s", ElementToString(r_msg))
             request.send_cms_response(rpki.left_right.cms_msg().wrap(
                 r_msg, irdbd.private_key, irdbd.certificate))
 
@@ -160,28 +169,34 @@ class main(object):
         self.cfg.add_argument("--profile",
                               default = "",
                               help = "enable profiling, saving data to PROFILE")
-        rpki.log.argparse_setup(self.cfg.argparser)
+        self.cfg.add_logging_arguments()
         args = self.cfg.argparser.parse_args()
 
-        rpki.log.init("irdbd", args)
+        self.cfg.configure_logging(args = args, ident = "irdbd")
 
-        self.cfg.set_global_flags()
+        try:
+            self.cfg.set_global_flags()
 
-        self.cms_timestamp = None
+            self.cms_timestamp = None
 
-        if not args.foreground:
-            rpki.daemonize.daemon(pidfile = args.pidfile)
+            if not args.foreground:
+                rpki.daemonize.daemon(pidfile = args.pidfile)
 
-        if args.profile:
-            import cProfile
-            prof = cProfile.Profile()
-            try:
-                prof.runcall(self.main)
-            finally:
-                prof.dump_stats(args.profile)
-                logger.info("Dumped profile data to %s", args.profile)
-        else:
-            self.main()
+            if args.profile:
+                import cProfile
+                prof = cProfile.Profile()
+                try:
+                    prof.runcall(self.main)
+                finally:
+                    prof.dump_stats(args.profile)
+                    logger.info("Dumped profile data to %s", args.profile)
+            else:
+                self.main()
+
+        except:
+            logger.exception("Unandled exception in rpki.irdbd.main()")
+            sys.exit(1)
+
 
     def main(self):
 

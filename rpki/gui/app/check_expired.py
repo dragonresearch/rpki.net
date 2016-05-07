@@ -1,4 +1,4 @@
-# Copyright (C) 2012, 2013, 2014  SPARTA, Inc. a Parsons Company
+# Copyright (C) 2012, 2013, 2014, 2016  SPARTA, Inc. a Parsons Company
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -21,7 +21,7 @@ from cStringIO import StringIO
 import logging
 import datetime
 
-from rpki.gui.cacheview.models import Cert
+from rpki.gui.gui_rpki_cache.models import Cert
 from rpki.gui.app.models import Conf, ResourceCert, Timestamp, Alert
 from rpki.gui.app.glue import list_received_resources
 from rpki.irdb import Zookeeper
@@ -61,8 +61,8 @@ def check_expire(conf, errs):
     # get certs for `handle'
     cert_set = ResourceCert.objects.filter(conf=conf)
     for cert in cert_set:
-        # look up cert in cacheview db
-        obj_set = Cert.objects.filter(repo__uri=cert.uri)
+        # look up cert in gui_rpki_cache db
+        obj_set = Cert.objects.filter(uri=cert.uri)
         if not obj_set:
             # since the <list_received_resources/> output is cached, this can
             # occur if the cache is out of date as well..
@@ -77,7 +77,7 @@ def check_expire(conf, errs):
                 f = '*'
             else:
                 f = ' '
-            msg.append("%s  [%d] uri=%s ski=%s name=%s expires=%s" % (f, n, c.repo.uri, c.keyid, c.name, c.not_after))
+            msg.append("%s  [%d] uri=%s expires=%s" % (f, n, c.uri, c.not_after))
 
             # find ghostbuster records attached to this cert
             for gbr in c.ghostbusters.all():

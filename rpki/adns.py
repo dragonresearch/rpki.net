@@ -1,8 +1,8 @@
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2010--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2003--2007, 2009, 2010 Nominum, Inc. ("NOMINUM")
+# Copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2010-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2003-2007, 2009, 2010 Nominum, Inc. ("NOMINUM")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -335,7 +335,6 @@ class getaddrinfo(object):
 
 if __name__ == "__main__":
 
-    rpki.log.init("test-adns")
     print "Some adns tests may take a minute or two, please be patient"
 
     class test_getaddrinfo(object):

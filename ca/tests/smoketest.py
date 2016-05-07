@@ -13,9 +13,9 @@ things that don't belong in yaml_file.
 
 # $Id$
 #
-# Copyright (C) 2013--2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2009--2012  Internet Systems Consortium ("ISC")
-# Portions copyright (C) 2007--2008  American Registry for Internet Numbers ("ARIN")
+# Copyright (C) 2013-2014  Dragon Research Labs ("DRL")
+# Portions copyright (C) 2009-2012  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -158,8 +158,11 @@ def main():
     Main program.
     """
 
-    rpki.log.init(smoketest_name, argparse.Namespace(log_level   = logging.DEBUG,
-                                                     log_handler = lambda: logging.StreamHandler(sys.stdout)))
+    log_handler = logging.StreamHandler(sys.stdout)
+    log_handler.setFormatter(rpki.config.Formatter("smoketest", log_handler, logging.DEBUG))
+    logging.getLogger().addHandler(log_handler)
+    logging.getLogger().setLevel(logging.DEBUG)
+
     logger.info("Starting")
 
     rpki.http.http_client.timeout = rpki.sundial.timedelta(hours = 1)
@@ -537,9 +540,9 @@ class allocation(object):
         if valid_until is None and "valid_for" in yaml:
             valid_until = rpki.sundial.now() + rpki.sundial.timedelta.parse(yaml["valid_for"])
         self.base = rpki.resource_set.resource_bag(
-            asn = rpki.resource_set.resource_set_as(yaml.get("asn")),
-            v4 = rpki.resource_set.resource_set_ipv4(yaml.get("ipv4")),
-            v6 = rpki.resource_set.resource_set_ipv6(yaml.get("ipv6")),
+            asn = str(yaml.get("asn", "")),
+            v4 =  yaml.get("ipv4"),
+            v6 =  yaml.get("ipv6"),
             valid_until = valid_until)
         self.sia_base = yaml.get("sia_base")
         if "crl_interval" in yaml:

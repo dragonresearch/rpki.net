@@ -2,26 +2,28 @@
 #
 # $Id$
 #
-# Copyright (C) 2014 Dragon Research Labs ("DRL")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+# Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 #
-# Permission to use, copy, modify, and/or distribute this software for any
+# Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
-# copyright notice and this permission notice appear in all copies.
+# copyright notices and this permission notice appear in all copies.
 #
-# THE SOFTWARE IS PROVIDED "AS IS" AND DRL DISCLAIMS ALL WARRANTIES WITH
-# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-# AND FITNESS.  IN NO EVENT SHALL DRL BE LIABLE FOR ANY SPECIAL, DIRECT,
-# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-# PERFORMANCE OF THIS SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS AND DRL DISCLAIM ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL
+# PARSONS OR DRL BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
+# WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """
 Pretty-print the content of a ROA.  Does NOT attempt to verify the
 signature.
 """
 
-import argparse
+import rpki.config
 import rpki.POW
 
 class ROA(rpki.POW.ROA):                # pylint: disable=W0232
@@ -42,12 +44,12 @@ class ROA(rpki.POW.ROA):                # pylint: disable=W0232
         self.v4_prefixes = [self._format_prefix(p) for p in (v4 or ())]
         self.v6_prefixes = [self._format_prefix(p) for p in (v6 or ())]
 
-parser = argparse.ArgumentParser(description = __doc__)
-parser.add_argument("-b", "--brief", action = "store_true", help = "show only ASN and prefix(es)")
-parser.add_argument("-c", "--cms", action = "store_true", help = "print text representation of entire CMS blob")
-parser.add_argument("-s", "--signing-time", action = "store_true", help = "show SigningTime in brief mode")
-parser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "ROA(s) to print") # pylint: disable=E1101
-args = parser.parse_args()
+cfg = rpki.config.argparser(doc = __doc__)
+cfg.argparser.add_argument("--brief", action = "store_true", help = "show only ASN and prefix(es)")
+cfg.argparser.add_argument("--cms", action = "store_true", help = "print text representation of entire CMS blob")
+cfg.argparser.add_argument("--signing-time", action = "store_true", help = "show SigningTime in brief mode")
+cfg.argparser.add_argument("roas", nargs = "+", type = ROA.derReadFile, help = "ROA(s) to print") # pylint: disable=E1101
+args = cfg.argparser.parse_args()
 
 for roa in args.roas:
     roa.parse()

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-control.rnc 5903 2014-07-18 17:08:13Z sra $
+  $Id$
   
   RelaxNG schema for RPKI publication protocol.
   
-  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
-  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
-  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2012-2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above

@@ -1,8 +1,8 @@
 # $Id$
 #
-# Copyright (C) 2015--2016  Parsons Government Services ("PARSONS")
+# Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
 # Portions copyright (C) 2014  Dragon Research Labs ("DRL")
-# Portions copyright (C) 2012--2013  Internet Systems Consortium ("ISC")
+# Portions copyright (C) 2012-2013  Internet Systems Consortium ("ISC")
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above

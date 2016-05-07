@@ -12,22 +12,23 @@ left_right = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
   
   RelaxNG schema for RPKI left-right protocol.
   
-  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
-  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
-  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2015-2016  Parsons Government Services ("PARSONS")
+  Portions copyright (C) 2012-2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
   copyright notices and this permission notice appear in all copies.
   
-  THE SOFTWARE IS PROVIDED "AS IS" AND DRL, ISC, AND ARIN DISCLAIM ALL
-  WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-  WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT SHALL DRL,
-  ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-  CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-  OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-  NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
-  WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+  THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+  DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
+  SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+  RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+  CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+  CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 -->
 <grammar ns="http://www.hactrn.net/uris/rpki/left-right-spec/" xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <define name="version">
@@ -1688,13 +1689,13 @@ oob_setup = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 ## Parsed RelaxNG publication_control schema
 publication_control = RelaxNGParser(r'''<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  $Id: publication-control.rnc 5903 2014-07-18 17:08:13Z sra $
+  $Id$
   
   RelaxNG schema for RPKI publication protocol.
   
-  Copyright (C) 2012- -2014  Dragon Research Labs ("DRL")
-  Portions copyright (C) 2009- -2011  Internet Systems Consortium ("ISC")
-  Portions copyright (C) 2007- -2008  American Registry for Internet Numbers ("ARIN")
+  Copyright (C) 2012-2014  Dragon Research Labs ("DRL")
+  Portions copyright (C) 2009-2011  Internet Systems Consortium ("ISC")
+  Portions copyright (C) 2007-2008  American Registry for Internet Numbers ("ARIN")
   
   Permission to use, copy, modify, and distribute this software for any
   purpose with or without fee is hereby granted, provided that the above

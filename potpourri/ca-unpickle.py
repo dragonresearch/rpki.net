@@ -111,13 +111,17 @@ class FixURI(object):
                              port = world.cfg.pubd.server_port)
         self.new_pubd  = fmt(host = cfg.get(section = "pubd", option  = "server-host"),
                              port = cfg.get(section = "pubd", option  = "server-port"))
-        self.new_irdbd = fmt(host = world.cfg.irdbd.server_host,
-                             port = world.cfg.irdbd.server_port)
-        self.new_irdbd = fmt(host = cfg.get(section = "irdbd", option  = "server-host"),
-                             port = cfg.get(section = "irdbd", option  = "server-port"))
         self.old_rsyncd = world.cfg.myrpki.publication_rsync_server
         self.new_rsyncd = cfg.get(section = "myrpki",
                                   option = "publication_rsync_server")
+        self.new_irdbd = fmt(host = cfg.get(section = "irdbd", option  = "server-host"),
+                             port = cfg.get(section = "irdbd", option  = "server-port"))
+        try:
+            self.old_irdbd = fmt(host = world.cfg.irdbd.server_host,
+                                 port = world.cfg.irdbd.server_port)
+        except AttributeError:
+            u = urlparse.urlparse(world.cfg.irdbd.http_url)
+            self.old_irdbd = fmt(host = u.hostname, port = u.port)
 
     def _fix(self, uri, scheme, old_netloc, new_netloc):
         u = urlparse.urlparse(uri)

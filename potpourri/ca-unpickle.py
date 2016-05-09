@@ -185,6 +185,8 @@ def main():
     cfg = rpki.config.argparser(doc = __doc__)
     cfg.argparser.add_argument("--rootd", action = "store_true",
                                help = "enable extra processing for rootd transitions")
+    cfg.argparser.add_argument("--root-handle", default = str(uuid.uuid4()),
+                               help = "override default (random UUID) handle for root")
     cfg.add_logging_arguments()
     cfg.argparser.add_argument("input_file", help = "input file")
     args = cfg.argparser.parse_args()
@@ -256,8 +258,7 @@ class Root(object):
 
         rpki_root_mft_key = rpki.x509.RSA.generate()
 
-        # Maybe we'll figure out a prettier handle to use later
-        root_handle = str(uuid.uuid4())
+        root_handle = args.root_handle
 
         rpki_root_last_serial = max(
             rpki_work_cer.getSerial(),

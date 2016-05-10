@@ -17,7 +17,7 @@ setup_user() {
 }
 
 setup_directories() {
-    install -o rpki -g rpki -d /var/rcynic/data /var/rcynic/rpki-rtr /var/rcynic/rpki-rtr/sockets /var/www/html/rcynic
+    install -o rpki -g rpki -d /var/rcynic/data /var/rcynic/rpki-rtr /var/rcynic/rpki-rtr/sockets /var/www/html/rcynic /var/log/rpki
 }
 
 setup_config() {

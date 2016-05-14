@@ -6,19 +6,30 @@ platform on which you're trying to install.
 * On Ubuntu 12.04 LTS ("Precise Pangolin"), Ubuntu 14.04 ("Trusty Tahir"), or
   Debian 7 ("Wheezy"), you can use Debian binary packages.
 
-* if you want to install a simple RPKI cache to feed routers from a Ubuntu
-  14.04 system, here is a one page ten minute recipe.
+***** Simple RPKI Cacha Install *****
 
-* If you want to install a CA and a cache on a Ubuntu 14.04 with a rootd CA,
-  here is a one page hack. It will take less than an hour.
+if you want to install a simple RPKI cache to feed routers from a Ubuntu 14.04
+system, here is a one page ten minute recipe.
 
-* If you are feeling dangerous and want to try the rrdp testbed CA and RP, here
-  is a one page hack. It does not support rootd.
+***** install a CA and a cache on a Ubuntu 14.04 with a rootd CA *****
 
-* On FreeBSD, you can use FreeBSD ports.
+If you want to install a CA and a cache on a Ubuntu 14.04 with a rootd CA, here
+is a one page hack. It will take less than an hour.
 
-* On all other platforms, or on the above platforms if the pre-packaged
-  versions don't suit your needs, you will have to install from source code.
+***** Try the rrdp testbed CA and RP on Ubuntu Xenial *****
+
+If you are feeling adventurous and want to try the rrdp testbed CA and RP on
+Ubuntu Xenial 16.04 here is a one page hack. It supports a much simpler root
+CA.
+
+***** FreeBSD *****
+
+On FreeBSD, you can use FreeBSD ports.
+
+***** Other Platforms *****
+
+On all other platforms, or on the above platforms if the pre-packaged versions
+don't suit your needs, you will have to install from source code.
 
 Once you've finished installing the code, you will need to configure it. Since
 CAs are generally also relying parties (if only so that they can check the

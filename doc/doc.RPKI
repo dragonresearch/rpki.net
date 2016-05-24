@@ -4,7 +4,7 @@ This collection of tools implements both the production (CA) and relying party
 (RP) sides of an RPKI environment.
 
 The Subversion repository for the entire project is available for (read-only)
-anonymous access at http://subvert-rpki.hactrn.net/.
+anonymous access at https://subvert-rpki.hactrn.net/.
 
 If you just want to browse the code you might find the Trac source code browser
 interface more convenient.

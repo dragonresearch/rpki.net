@@ -11,7 +11,7 @@ like this:
 
   for port in rpki-rp rpki-ca
   do
-    fetch http://download.rpki.net/FreeBSD_Packages/${port}-port.tgz
+    fetch https://download.rpki.net/FreeBSD_Packages/${port}-port.tgz
     tar xf ${port}-port.tgz
     cd ${port}
     make install
@@ -33,7 +33,7 @@ deinstall and reinstall operations instead of plain install:
 
   for port in rpki-rp rpki-ca
   do
-    fetch http://download.rpki.net/FreeBSD_Packages/${port}-port.tgz
+    fetch https://download.rpki.net/FreeBSD_Packages/${port}-port.tgz
     tar xf ${port}-port.tgz
     cd ${port}
     make deinstall
@@ -53,7 +53,7 @@ customization to your rpki.conf you will want to keep track of this.
 There's a script you can use to automate the download steps above and perform
 the updates using portmaster. First, download the script:
 
-  fetch http://download.rpki.net/FreeBSD_Packages/rpki-portmaster.sh
+  fetch https://download.rpki.net/FreeBSD_Packages/rpki-portmaster.sh
 
 Then, to install or upgrade, just execute the script:
 
@@ -67,7 +67,7 @@ installation.
 There's a script you can use to automate the download steps above and perform
 the updates using portupgrade. First, download the script:
 
-  fetch http://download.rpki.net/FreeBSD_Packages/rpki-portupgrade.sh
+  fetch https://download.rpki.net/FreeBSD_Packages/rpki-portupgrade.sh
 
 Next, you will need to add information about the RPKI ports to two variables in
 /usr/local/etc/pkgtools.conf before portupgrade will know how to deal with

@@ -22,9 +22,9 @@ such as Fedora, Ubuntu, Debian, and MacOSX.
 The recommended way to obtain the source code is via subversion. To download,
 do:
 
-  $ svn checkout http://subvert-rpki.hactrn.net/trunk/
+  $ svn checkout https://subvert-rpki.hactrn.net/trunk/
 
-Code snapshots are also available from http://download.rpki.net/ as xz-
+Code snapshots are also available from https://download.rpki.net/ as xz-
 compressed tarballs.
 
 ***** Prerequisites *****

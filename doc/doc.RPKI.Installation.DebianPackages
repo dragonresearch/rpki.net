@@ -14,23 +14,23 @@ You should only need to perform these steps once for any particular machine.
 * Add the GPG public key for this repository (optional, but APT will whine
   unless you do this):
 
-    wget -q -O - http://download.rpki.net/APT/apt-gpg-key.asc | sudo apt-key
+    wget -q -O - https://download.rpki.net/APT/apt-gpg-key.asc | sudo apt-key
     add -
 
 * Configure APT to use this repository (for Ubuntu Trusty systems):
 
-    sudo wget -q -O /etc/apt/sources.list.d/rpki.list http://download.rpki.net/
-    APT/rpki.trusty.list
+    sudo wget -q -O /etc/apt/sources.list.d/rpki.list https://
+    download.rpki.net/APT/rpki.trusty.list
 
 * Configure APT to use this repository (for Ubuntu Precise systems):
 
-    sudo wget -q -O /etc/apt/sources.list.d/rpki.list http://download.rpki.net/
-    APT/rpki.precise.list
+    sudo wget -q -O /etc/apt/sources.list.d/rpki.list https://
+    download.rpki.net/APT/rpki.precise.list
 
 * Configure APT to use this repository (for Debian Wheezy systems):
 
-    sudo wget -q -O /etc/apt/sources.list.d/rpki.list http://download.rpki.net/
-    APT/rpki.wheezy.list
+    sudo wget -q -O /etc/apt/sources.list.d/rpki.list https://
+    download.rpki.net/APT/rpki.wheezy.list
 
 ***** Installation Using APT Tools *****
 

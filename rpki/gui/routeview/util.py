@@ -25,7 +25,6 @@ import bz2
 from urllib import urlretrieve, unquote
 
 from django.db import transaction
-from django.conf import settings
 
 from rpki.resource_set import resource_range_ipv4, resource_range_ipv6
 from rpki.exceptions import BadIPResource
@@ -34,9 +33,6 @@ from rpki.gui.routeview.models import RouteOrigin
 
 # globals
 logger = logging.getLogger(__name__)
-
-# Eventually this can be retrived from rpki.conf
-DEFAULT_URL = 'http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.dat.bz2'
 
 class ParseError(Exception): pass
 
@@ -62,6 +58,9 @@ class RouteDumpParser(object):
             except ParseError as e:
                 logger.warning('error while parsing line: {} ({})'.format(line, str(e)))
                 continue
+
+	    if prefix is None: # used when encountering AS sets that we skip over
+		continue
 
             # the output may contain multiple paths to the same origin.
             # if this is the same prefix as the last entry, we don't need
@@ -121,6 +120,9 @@ class TextDumpParser(RouteDumpParser):
 
         # index -1 is i/e/? for igp/egp
         try:
+	    if cols[-2][0] == '{' and cols[-2][-1] == '}':
+		# skip AS sets
+		return None, None
             origin_as = int(cols[-2])
         except IndexError:
             raise ParseError('unexpected format')
@@ -129,7 +131,8 @@ class TextDumpParser(RouteDumpParser):
 
         # FIXME Django doesn't have a field for positive integers up to 2^32-1
 	if origin_as < 0 or origin_as > 2147483647:
-	    raise ParseError('AS value out of supported database range')
+            logger.debug('AS value out of range: %d', origin_as)
+            return None, None
 
         prefix = cols[1]
 
@@ -186,7 +189,7 @@ class PipeFailed(ProgException):
     pass
 
 
-def import_routeviews_dump(filename=DEFAULT_URL, filetype='text'):
+def import_routeviews_dump(filename, filetype='text', download_dir='/var/tmp'):
     """Load the oix-full-snapshot-latest.bz2 from routeview.org into the
     rpki.gui.routeview database.
 
@@ -205,7 +208,7 @@ def import_routeviews_dump(filename=DEFAULT_URL, filetype='text'):
             #get filename from the basename of the URL
             u = urlparse.urlparse(filename)
             bname = os.path.basename(unquote(u.path))
-            tmpname = os.path.join(settings.DOWNLOAD_DIRECTORY, bname)
+            tmpname = os.path.join(download_dir, bname)
 
             logger.info("Downloading %s to %s", filename, tmpname)
             if os.path.exists(tmpname):

@@ -1028,6 +1028,100 @@
 
   </section>
 
+  <section name = "rpkigui-import-routes">
+
+    <doc>
+      Configuration for the rpkigui-import-routes auxillary script.
+    </doc>
+
+    <option name = "type"
+            value = "text">
+      <doc>
+	Select the input format.  Valid input types are 'text' for 'sh ip bgp' format, and 'mrt'
+	for MRT.
+      </doc>
+    </option>
+
+    <option name = "bgpdump"
+            value = "bgpdump">
+      <doc>
+	Path to the bgpdump command line utility, used for importing MRT format files.
+      </doc>
+    </option>
+
+    <option name = "jitter"
+            value = "0">
+      <doc>
+	Sleep for a random amount of seconds between 0 and this value before starting the download.
+      </doc>
+    </option>
+
+    <option name = "lockfile"
+            value = "/tmp/rpkigui-import-routes.lock">
+      <doc>
+	Path to use for the lockfile to prevent multiple executions.
+      </doc>
+    </option>
+
+    <option name = "timeout"
+            value = "5400">
+      <doc>
+	How long in seconds to wait for the download to complete before aborting.
+      </doc>
+    </option>
+
+    <option name = "filename"
+            value = "http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.dat.bz2">
+      <doc>
+	Specify where to fetch the route dump.  May be a filename or URL.
+      </doc>
+    </option>
+
+    <option name = "download-directory"
+            value = "/var/tmp">
+      <doc>
+	Where to store local copy of route dump when 'filename' is a URL.
+      </doc>
+    </option>
+
+    <option name  = "log-destination"
+	    value = "${myrpki::log-destination}">
+      <doc>
+	Logging mechanism, can be "file", "syslog", "stderr", or "stdout".
+      </doc>
+    </option>
+
+    <option name  = "log-filename"
+	    value = "${myrpki::log-directory}/rpkgui-import-routes.log">
+      <doc>
+	Where to write log file when logging to a file.
+      </doc>
+    </option>
+
+    <option name  = "log-level"
+	    value = "error">
+      <doc>
+	Default logging level.
+      </doc>
+    </option>
+
+    <option name  = "log-time-limit"
+	    value = "${myrpki::log-time-limit}">
+      <doc>
+	Interval between log file rotations, in hours.
+	Set to zero to disable automatic rotations.
+      </doc>
+    </option>
+
+    <option name  = "log-count"
+	    value = "${myrpki::log-count}">
+      <doc>
+	How many old logs to keep before deleting.
+      </doc>
+    </option>
+
+  </section>
+
   <section name = "autoconf">
 
     <doc>

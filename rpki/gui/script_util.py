@@ -26,7 +26,7 @@ def setup():
 
     import os
 
-    os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui")
+    os.environ.update(DJANGO_SETTINGS_MODULE = "rpki.django_settings.gui_script")
 
     # Initialize Django.
     import django

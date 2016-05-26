@@ -459,7 +459,7 @@ class_dispatch = dict(cer = X509,
 def uri_to_class(uri):
     cls = class_dispatch.get(uri[-3:]) if len(uri) > 4 and uri[-4] == "." else None
     if cls is None:
-        Status.add(uri, None, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
+        Status.add(uri, codes.UNKNOWN_OBJECT_TYPE_SKIPPED)
     return cls
 
 
@@ -615,7 +615,7 @@ class  WalkFrame(object):
                 continue
 
             if cls in (Manifest, CRL):
-                Status.add(uri, None, codes.INAPPROPRIATE_OBJECT_TYPE_SKIPPED)
+                Status.add(uri, codes.INAPPROPRIATE_OBJECT_TYPE_SKIPPED)
                 continue
 
             for obj in fetch_objects(sha256 = digest.encode("hex")):
@@ -690,10 +690,10 @@ def read_tals():
                     uris = lines[:blank]
                     key  = rpki.POW.Asymmetric.derReadPublic("".join(lines[blank:]).decode("base64"))
                     if not uris or not all(uri.endswith(".cer") for uri in uris):
-                        Status.add(furi, None, codes.MALFORMED_TAL_URI)
+                        Status.add(furi, codes.MALFORMED_TAL_URI)
                     yield uris, key
                 except:
-                    Status.add(furi, None, codes.UNREADABLE_TRUST_ANCHOR_LOCATOR)
+                    Status.add(furi, codes.UNREADABLE_TRUST_ANCHOR_LOCATOR)
 
 
 def uri_to_filename(uri, base = None):

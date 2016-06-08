@@ -89,7 +89,7 @@ install-conf:
 	if test ! -f ${DESTDIR}${sysconfdir}/rpki.conf ||\
 		cmp -s ${DESTDIR}${sysconfdir}/rpki.conf ${DESTDIR}${sysconfdir}/rpki/rpki.rp.conf.sample;\
 	then \
-		cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.ca.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf
+		cp -p ${DESTDIR}${sysconfdir}/rpki/rpki.ca.conf.sample ${DESTDIR}${sysconfdir}/rpki.conf; \
 	fi
 
 #uninstall deinstall::

@@ -89,7 +89,7 @@ class MySQL_Driver(Abstract_Driver):
         self.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{0.database}'".format(udb))
         return bool(self.fetchone()[0])
 
-    def execute(*args):
+    def execute(self, *args):
         try:
             self._cur
         except AttributeError:

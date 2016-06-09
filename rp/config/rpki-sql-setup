@@ -89,7 +89,7 @@ class MySQL_Driver(Abstract_Driver):
         self.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '{0.database}'".format(udb))
         return bool(self.fetchone()[0])
 
-    def execute(self, *args):
+    def execute(self, query, args = None):
         try:
             self._cur
         except AttributeError:
@@ -105,8 +105,8 @@ class MySQL_Driver(Abstract_Driver):
                                                passwd = getpass.getpass("Please enter your MySQL root password: "))
             self._db.autocommit(True)
             self._cur = self._db.cursor()
-        self.log("MySQL driver executing {}".format(", ".join(args)))
-        return self._cur.execute(*args)
+        self.log("MySQL driver executing {!r} {!r}".format(query, args))
+        return self._cur.execute(query, args)
 
     def create(self, udb):
         self.execute("CREATE DATABASE IF NOT EXISTS {0.database}".format(udb))
@@ -179,7 +179,7 @@ class PostgreSQL_Driver(Abstract_Driver):
             os.seteuid(new_uid)
         return old_uid
 
-    def execute(self, *args):
+    def execute(self, query, args = None):
         try:
             self._cur
         except AttributeError:
@@ -193,8 +193,8 @@ class PostgreSQL_Driver(Abstract_Driver):
             finally:
                 if self._pw is not None:
                     self._seteuid(euid)
-        self.log("PostgreSQL driver executing {}".format(", ".join(args)))
-        return self._cur.execute(*args)
+        self.log("PostgreSQL driver executing {!r} {!r}".format(query, args))
+        return self._cur.execute(query, args)
 
     def _db_accessible_test(self, udb):
         pw = pwd.getpwnam(udb.username)

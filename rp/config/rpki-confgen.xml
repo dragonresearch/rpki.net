@@ -1026,6 +1026,13 @@
       </doc>
     </option>
 
+    <option name = "log-level"
+	    value = "WARNING">
+     <doc>
+       Default logging level for the web portal.
+     </doc>
+    </option>
+
   </section>
 
   <section name = "rpkigui-import-routes">

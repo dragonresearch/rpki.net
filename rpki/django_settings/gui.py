@@ -37,9 +37,6 @@ STATIC_ROOT = rpki.autoconf.datarootdir + "/rpki/media"
 # Must end with a slash!
 STATIC_URL = "/media/"
 
-# Where to email server errors.
-ADMINS = (("Administrator", "root@localhost"),)
-
 LOGGING = {
     "version": 1,
     "formatters": {
@@ -54,18 +51,22 @@ LOGGING = {
             "level": "DEBUG",
             "formatter": "verbose",
         },
-        "mail_admins": {
-            "level": "ERROR",
-            "class": "django.utils.log.AdminEmailHandler",
-        },
     },
     "loggers": {
-        "django": {
-            "level": "ERROR",
-            "handlers": ["stderr", "mail_admins"],
+        # override default behavior to avoid emailing, and send it to stderr
+        "django.request": {
+            "level": 'ERROR',
+            "handlers": ["stderr"],
+            "propagate": False,
+        },
+        # override default behavior to avoid emailing, and send it to stderr
+        "django.security": {
+            "level": 'ERROR',
+            "handlers": ["stderr"],
+            "propagate": False,
         },
         "rpki.gui": {
-            "level": "WARNING",
+            "level": cfg.get('log-level', 'WARNING', section='web_portal'),
             "handlers": ["stderr"],
         },
     },

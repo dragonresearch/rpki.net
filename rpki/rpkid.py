@@ -770,14 +770,19 @@ class publication_queue(object):
 
         for uri, obj in our_objs:
             if uri not in pubd_objs:
+                logger.info("Resynchronization: adding object %s", uri)
                 SubElement(q_msg, rpki.publication.tag_publish, uri = uri).text = obj.get_Base64()
             else:
                 h = pubd_objs.pop(uri)
                 if h != rpki.x509.sha256(obj.get_DER()).encode("hex"):
+                    logger.info("Resynchronization: updating object %s", uri)
                     SubElement(q_msg, rpki.publication.tag_publish, 
                                uri = uri, hash = h).text = obj.get_Base64()
+                else:
+                    logger.info("Resynchronization: keeping object %s", uri)
 
         for uri, h in pubd_objs.iteritems():
+            logger.info("Resynchronization: removing object %s", uri)
             SubElement(q_msg, rpki.publication.tag_withdraw, uri = uri, hash = h)
 
         yield repository.call_pubd(self.rpkid, q_msg)

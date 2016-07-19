@@ -752,6 +752,7 @@ class Fetcher(object):
 
     _https_deadhosts = set()
     _https_history = dict()
+    _https_invalid = set()
 
     def __init__(self, uri, ta = False):
         self.uri = uri
@@ -893,7 +894,9 @@ class Fetcher(object):
     @tornado.gen.coroutine
     def _https_fetch_url(self, url, streaming_callback = None):
 
-        if urlparse.urlparse(url).netloc in self._https_deadhosts:
+        netloc = urlparse.urlparse(url).netloc
+
+        if netloc in self._https_deadhosts:
             raise DeadHost
 
         # Should do something with deadhost processing below.  Looks
@@ -921,11 +924,24 @@ class Fetcher(object):
             ok = False
             t0 = time.time()
             client = tornado.httpclient.AsyncHTTPClient(max_body_size = args.max_https_body_size)
-            response = yield client.fetch(url,
-                                          streaming_callback = streaming_callback,
-                                          validate_cert = args.validate_https,
-                                          connect_timeout = args.https_timeout,
-                                          request_timeout = args.https_timeout)
+            validate = args.validate_https and netloc not in self._https_invalid
+            try:
+                response = yield client.fetch(url,
+                                              streaming_callback = streaming_callback,
+                                              validate_cert = validate,
+                                              connect_timeout = args.https_timeout,
+                                              request_timeout = args.https_timeout)
+            except ssl.SSLError as e:
+                if not validate or e.reason != "CERTIFICATE_VERIFY_FAILED":
+                    raise
+                logger.info("HTTPS validation failure for %s, retrying with validation disabled", url)
+                response = yield client.fetch(url,
+                                              streaming_callback = streaming_callback,
+                                              validate_cert = False,
+                                              connect_timeout = args.https_timeout,
+                                              request_timeout = args.https_timeout)
+                self._https_invalid.add(netloc)
+
             # Might want to check response Content-Type here
             ok = True
 

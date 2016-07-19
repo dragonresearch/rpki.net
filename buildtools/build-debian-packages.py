@@ -51,6 +51,10 @@ elif os.path.exists(".git/svn"):
         time   = subprocess.check_output(("git", "show", "--no-patch", "--format=%ct", "HEAD")).strip(),
         commit = subprocess.check_output(("git", "rev-parse", "HEAD")).strip())
     del git_svn_log
+elif os.path.exists(".git"):
+    # Ideally we'd use something like "git describe --dirty --tags --always" but I don't want to deal with that
+    # generating something that won't parse as a package number.  Using a timestamp is icky, but also simple.
+    version = "0.{}".format(subprocess.check_output(("git", "show", "--no-patch", "--format=%ct", "HEAD")).strip())
 else:
     sys.exit("Sorry, don't know how to extract version number from this source tree")
 

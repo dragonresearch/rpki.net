@@ -106,6 +106,7 @@ if autoconf.CA_TARGET == "ca":
                                            "templatetags/*.py"]
 
     package_data["rpki.gui.gui_rpki_cache"]  = ["migrations/*.py"]
+    package_data["rpki.gui.routeview"] = ["migrations/*.py"]
 
 
     data_files += [(autoconf.datarootdir + "/rpki/wsgi",

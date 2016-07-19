@@ -32,7 +32,7 @@ setup_sql() {
     sudo -u rpki rpki-manage migrate rpkidb --settings rpki.django_settings.rpkid 
     sudo -u rpki rpki-manage migrate pubdb  --settings rpki.django_settings.pubd  
     sudo -u rpki rpki-manage migrate irdb   --settings rpki.django_settings.irdb  
-    sudo -u rpki rpki-manage migrate        --settings rpki.django_settings.gui   
+    sudo -u rpki rpki-manage migrate        --settings rpki.django_settings.gui   --fake-initial
 }
 
 setup_bpki() {

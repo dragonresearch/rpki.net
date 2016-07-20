@@ -240,6 +240,8 @@ def dashboard(request):
 
     clients = models.Client.objects.all() if request.user.is_superuser else None
 
+    ts = dict((attr['name'], attr['ts']) for attr in models.Timestamp.objects.values())
+
     return render(request, 'app/dashboard.html', {
         'conf': conf,
         'unused_asns': unused_asns,
@@ -249,6 +251,7 @@ def dashboard(request):
         'prefixes': prefixes,
         'prefixes_v6': prefixes_v6,
         'clients': clients,
+        'timestamp': ts,
     })
 
 

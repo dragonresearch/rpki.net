@@ -28,7 +28,8 @@ from .irdb import *                     # pylint: disable=W0401,W0614
 __version__ = "$Id: gui.py 6427 2016-05-07 04:14:02Z sra $"
 
 INSTALLED_APPS.extend((
-    #"django.contrib.contenttypes", # not sure if required for aux scripts?
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
     "rpki.gui.app",
     "rpki.gui.gui_rpki_cache",
     "rpki.gui.routeview",

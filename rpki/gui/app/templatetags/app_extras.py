@@ -1,5 +1,6 @@
 from django import template
 from rpki.gui.app.models import Conf
+from django.utils.html import format_html
 
 register = template.Library()
 
@@ -23,7 +24,7 @@ css = {
 
 @register.simple_tag
 def validity_label(validity):
-    return '<span class="label %s">%s</span>' % (css.get(validity, ''), validity)
+    return format_html('<span class="label {}">{}</span>', css.get(validity, ''), validity)
 
 
 @register.simple_tag
@@ -54,7 +55,7 @@ def alert_count(conf):
         css_class = css.get(severity)
     else:
         css_class = 'badge-default'
-    return u'<span class="badge %s">%d</span>' % (css_class, unread)
+    return format_html('<span class="badge {}">{}</span>', css_class, unread)
 
 
 @register.simple_tag

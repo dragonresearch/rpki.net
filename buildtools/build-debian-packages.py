@@ -1,5 +1,3 @@
-# $Id$
-#
 # Copyright (C) 2015--2016  Parsons Government Services ("PARSONS")
 # Portions copyright (C) 2014  Dragon Research Labs ("DRL")
 # Portions copyright (C) 2013  Internet Systems Consortium ("ISC")
@@ -40,35 +38,20 @@ parser.add_argument("-s", "--version-suffix", nargs = "?", const = platform.linu
                     help = "suffix to add to version string")
 args = parser.parse_args()
 
-if os.path.exists(".svn"):
-    version = "0.{rev}".format(
-        rev    = subprocess.check_output(("svnversion", "-c")).strip().split(":")[-1])
-elif os.path.exists(".git/svn"):
-    git_svn_log = subprocess.check_output(("git", "svn", "log", "--show-commit", "--oneline", "--limit=1")).split()
-    version = "0.{rev}.{count}.{time}.{commit}".format(
-        rev    = git_svn_log[0][1:],
-        count  = subprocess.check_output(("git", "rev-list", "--count", git_svn_log[2] + "..HEAD")).strip(),
-        time   = subprocess.check_output(("git", "show", "--no-patch", "--format=%ct", "HEAD")).strip(),
-        commit = subprocess.check_output(("git", "rev-parse", "HEAD")).strip())
-    del git_svn_log
-elif os.path.exists(".git"):
-    # Ideally we'd use something like "git describe --dirty --tags --always" but I don't want to deal with that
-    # generating something that won't parse as a package number.  Using a timestamp is icky, but also simple.
-    version = "0.{}".format(subprocess.check_output(("git", "show", "--no-patch", "--format=%ct", "HEAD")).strip())
-else:
-    sys.exit("Sorry, don't know how to extract version number from this source tree")
+version = subprocess.check_output((sys.executable, os.path.join(os.path.dirname(sys.argv[0]), "make-version.py"), "--stdout")).strip()
 
 if os.path.exists("debian"):
     shutil.rmtree("debian")
 
-def ignore_dot_svn(src, names):
-    return [name for name in names if name == ".svn"]
-
-shutil.copytree("buildtools/debian-skeleton", "debian", ignore = ignore_dot_svn)
+shutil.copytree("buildtools/debian-skeleton", "debian")
 
 os.chmod("debian/rules", 0755)
 
-msg = "Version %s of https://subvert-rpki.hactrn.net/trunk/" % version
+msg = "Version {} of RPKI toolkit".format(version)
+
+assert version.startswith("buildbot-")
+
+version = version[len("buildbot-"):].replace("-", ".")
 
 if args.version_suffix:
     version += "~" + args.version_suffix

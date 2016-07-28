@@ -55,7 +55,7 @@ if args.build_tag:
 
 try:
     ver = subprocess.check_output(("git", "describe", "--match", "buildbot-*", "--dirty"), stderr = open("/dev/null", "w")).strip()
-except subprocess.CalledProcessError:
+except (OSError, subprocess.CalledProcessError):
     ver = None
 
 try:

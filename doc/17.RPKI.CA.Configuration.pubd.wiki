@@ -1,0 +1,123 @@
+{{{
+#!comment
+
+******************************************************************************
+THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
+
+Generated from $Id: rpki-confgen.xml 6070 2015-03-23 18:04:06Z melkins $
+            by $Id: rpki-confgen 5856 2014-05-31 18:32:19Z sra $
+******************************************************************************
+
+}}}
+[[TracNav(doc/RPKI/TOC)]]
+[[PageOutline]]
+
+= [pubd] section = #pubd
+
+pubd's default configuration file is the system `rpki.conf` file.
+Start pubd with "`-c filename`" to choose a different configuration
+file. All options are in the "`[pubd]`" section. BPKI certificates and
+keys may be either DER or PEM format.
+
+== sql-database == #sql-database
+
+MySQL database name for pubd.
+
+{{{
+#!ini
+sql-database = ${myrpki::pubd_sql_database}
+}}}
+
+== sql-username == #sql-username
+
+MySQL user name for pubd.
+
+{{{
+#!ini
+sql-username = ${myrpki::pubd_sql_username}
+}}}
+
+== sql-password == #sql-password
+
+MySQL password for pubd.
+
+{{{
+#!ini
+sql-password = ${myrpki::pubd_sql_password}
+}}}
+
+== publication-base == #publication-base
+
+Root of directory tree where pubd should write out published data. You
+need to configure this, and the configuration should match up with the
+directory where you point rsyncd. Neither pubd nor rsyncd much cares
+-where- you tell them to put this stuff, the important thing is that
+the rsync URIs in generated certificates match up with the published
+objects so that relying parties can find and verify rpkid's published
+outputs.
+
+{{{
+#!ini
+publication-base = ${myrpki::publication_base_directory}
+}}}
+
+== server-host == #server-host
+
+Host on which pubd should listen for HTTP service requests.
+
+{{{
+#!ini
+server-host = ${myrpki::pubd_server_host}
+}}}
+
+== server-port == #server-port
+
+Port on which pubd should listen for HTTP service requests.
+
+{{{
+#!ini
+server-port = ${myrpki::pubd_server_port}
+}}}
+
+== bpki-ta == #bpki-ta
+
+Where pubd should look for the BPKI trust anchor. All BPKI certificate
+verification within pubd traces back to this trust anchor. Don't
+change this unless you really know what you are doing.
+
+{{{
+#!ini
+bpki-ta = ${myrpki::bpki_servers_directory}/ca.cer
+}}}
+
+== pubd-cert == #pubd-cert
+
+Where pubd should look for its own BPKI EE certificate. Don't change
+this unless you really know what you are doing.
+
+{{{
+#!ini
+pubd-cert = ${myrpki::bpki_servers_directory}/pubd.cer
+}}}
+
+== pubd-key == #pubd-key
+
+Where pubd should look for the private key corresponding to its own
+BPKI EE certificate. Don't change this unless you really know what you
+are doing.
+
+{{{
+#!ini
+pubd-key = ${myrpki::bpki_servers_directory}/pubd.key
+}}}
+
+== irbe-cert == #irbe-cert
+
+Where pubd should look for the back-end control client's BPKI EE
+certificate. Don't change this unless you really know what you are
+doing.
+
+{{{
+#!ini
+irbe-cert = ${myrpki::bpki_servers_directory}/irbe.cer
+}}}

@@ -1,0 +1,6 @@
+= RPKI CA Out-Of-Band Setup Protocol =
+
+[[TracNav(doc/RPKI/TOC)]]
+
+Not documented yet.  Eventually this will be a readable explanation of
+the out-of-band setup protocol.

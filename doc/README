@@ -1,18 +1,34 @@
-$Id$
+This directory contains documentation salvaged from https://wiki.rpki.net/.
 
-This directory contains PDF and flat text translations of the
-documentation for the RPKI toolkit.  The primary documentation source
-is the web site https://trac.rpki.net/, the files here are best-effort
-attempts at mechanical translation of that content into other formats.
+The original source format is Trac wiki, but the Trac instance in
+question is ailing, some of the plug-ins it uses are obsolete, and
+Markdown is more commonly used for this sort of thing these days in
+any case, so extracting this from the ailing Wiki seemed advisable.
 
-The doc.* files are flat text translated by html2text.
+The numbered files in this directory were extracted by a Python script
+(included).  Several kinds of files are present:
 
-manual.pdf is a translation by htmldoc.
+* .wiki files, containing the raw Trac Wiki page text;
 
-Neither translation is perfect, something is always lost.  When in
-doubt, consult the web site if you can.
+* .md files, resulting from feeding the HTML version of the Wiki pages
+  into an automated HTML-to-Markdown translator;
 
-In theory, the contents of this directory are kept up to date with
-respect to the web site by a cron job.  If you happen notice that the
-contents here seem to be lagging the web site by more than a few
-hours, please report it.
+* various graphics formats (.svg, .jpg) holding images which were
+  used inline in some of the Wiki pages; and
+
+* .zip files, containing attachments to the Wiki pages.
+
+In some cases the attachments in the .zip files will be the same as
+the image files, but not always.  What you see is what there was.
+
+There are two main problems with this documentation at present:
+
+1. It's for the old version of the RPKI code (branch old-trunk) rather
+   than the current version (branch master).
+
+2. The translation to Markdown almost certainly needs some help from a
+   human being, what's here is just what html2markdown could do.
+
+Nevertheless, the content recorded here was a fairly complete manual
+at one point, and it would almost certainly be a lot easier to finish
+the conversion and bring it up to date than to start over.

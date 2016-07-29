@@ -1,0 +1,213 @@
+[[TracNav(doc/RPKI/TOC)]]
+[[PageOutline]]
+
+= rpki-rtr =
+
+`rpki-rtr` is an implementation of the
+[[http://www.rfc-editor.org/rfc/rfc6810.txt|"RPKI-router" protocol (RFC-6810)]].
+
+`rpki-rtr` depends on [[rcynic|`rcynic`]] to collect and validate the
+RPKI data.  `rpki-rtr`'s's job is to serve up that data in a
+lightweight format suitable for routers that want to do prefix origin
+authentication.
+
+To use `rpki-rtr`, you need to do two things beyond just running `rcynic`:
+
+1. You need to [[#cronjob-mode|post-process `rcynic`'s output]] into the
+   data files used by rpki-rtr.  The `rcynic-cron` script handles this
+   automatically, so the default installation should already be taking
+   care of this for you.
+
+2. You need to [[#server-mode|set up a listener]] for the `rpki-rtr`
+   server, using the generated data files.  The platform-specific
+   packages for FreeBSD, Debian, and Ubuntu automatically set up a
+   plain TCP listener, but you will have to do something on other
+   platforms, or if you're using a transport protocol other than plain
+   TCP.
+
+== Post-processing rcynic's output == #cronjob-mode
+
+`rpki-rtr` is designed to do the translation from raw RPKI data into
+the rpki-rtr protocol only once.  It does this by pre-computing the
+answers to all the queries it is willing to answer for a given data
+set, and storing them on disk.  `rpki-rtr`'s `cronjob` command handles
+this computation.
+
+To set this up, add an invocation of `rpki-rtr cronjob` to the
+cron job you're already running to run `rcynic`.  As mentioned above,
+if you're running the `rcynic-cron` script, this is already being done
+for you automatically, so you don't need to do anything.  If you've
+written your own cron script, you'll need to add something like this
+to your script:
+
+{{{
+#!sh
+/usr/local/bin/rpki-rtr cronjob /var/rcynic/data/authenticated /var/rcynic/rpki-rtr
+}}}
+
+`rpki-rtr cronjob` needs write access to a directory where it can
+store pre-digested versions of the data it pulls from `rcynic`.  In
+the example above, the directory `/var/rcynic/rpki-rtr` should be
+writable by the user ID that is executing the cron script.
+
+`rpki-rtr` creates a collection of data files, as well as a
+subdirectory in which each instance of `rpki-rtr server` can place a
+`PF_UNIX` socket file.  By default, `rpki-rtr` creates these files
+under the directory in which you run it, but you can change that by
+specifying the target directory as a second command line argument, as
+shown above.
+
+You should make sure that `rpki-rtr cronjob` runs at least once before
+attempting to configure `rpki-rtr server`.  Nothing terrible will
+happen if you don't do this, but `rpki-rtr server` invocations started
+before the first `rpki-rtr cronjob` run may behave oddly.
+
+== Setting up the rpki-rtr server == #server-mode
+
+You need to to set up a server listener that invokes `rpki-rtr
+server`.  What kind of server listener you set up depends on which
+network protocol you're using to transport this protocol.  `rpki-rtr`
+is happy to run under inetd, xinetd, sshd, or pretty much anything --
+`rpki-rtr` doesn't really care, it just reads from `stdin` and writes
+to `stdout`.
+
+`rpki-rtr server` should be run as a non-privileged user (it is
+read-only for a reason).  You may want to set up a separate UNIX
+userid for this purpose.
+
+`rpki-rtr server` takes an optional argument specifying the path to
+its data directory; if you omit this argument, it uses the directory
+in in which you run it.
+
+The details of how you set up a listener for this vary depending on
+the network protocol and the operating system on which you run it.
+Here are three examples, for running under `inetd` on FreeBSD, under
+`sshd`, or as a free-standing server using `rpki-rtr listener`.
+
+=== Running rpki-rtr server under inetd === #under-inetd
+
+Running under `inetd` with plain TCP is insecure and should only be done
+for testing, but you can also run it with TCP-MD5 or TCP-AO, or over
+IPsec.  The inetd configuration is generally the same, the details of
+how you set up TCP-MD5, TCP-AO, or IPsec are platform specific.
+
+To run under `inetd`, you need to:
+
+a. Add an entry to `/etc/services` defining a symbolic name for the
+   port, if one doesn't exist already.  At present there is no
+   well-known port defined for this protocol, for this example we'll
+   use port 42420 and the symbolic name `rpki-rtr`.
+
+   Add to `/etc/services`:
+
+   {{{
+   rpki-rtr          42420/tcp
+   }}}
+
+b. Add the service line to `/etc/inetd.conf`:
+
+   {{{
+   rpki-rtr stream tcp nowait nobody /usr/local/bin/rpki-rtr rpki-rtr server /var/rcynic/rpki-rtr
+   }}}
+
+   This assumes that you want the server to run as user "nobody",
+   which is generally a safe choice, or you could create a new
+   non-priviledged user for this purpose.  **DO NOT** run the server
+   as root; it shouldn't do anything bad, but it's a network server
+   that doesn't need root access, therefore it shouldn't have root
+   access.
+
+=== Running rpki-rtr server under sshd ===
+
+To run `rpki-rtr server` under `sshd`, you need to:
+
+a. Decide whether to run a new instance of sshd on a separate port or
+   use the standard port.  `rpki-rtr` doesn't care, but some people
+   seem to think that it's somehow more secure to run this service on
+   a different port.  Setting up `sshd` in general is beyond the scope
+   of this documention, but most likely you can copy the bulk of your
+   configuration from the standard config.
+
+b. Configure `sshd` to know about the `rpki-rtr` subsystem.  Add something
+   like this to your `sshd.conf`:
+
+   {{{
+   Subsystem rpki-rtr /usr/local/bin/rpki-rtr
+   }}}
+
+c. Configure the userid(s) you expect SSH clients to use to connect to
+   the server.  For operational use you almost certainly do //NOT//
+   want this user to have a normal shell, instead you should configure
+   its shell to be the server (`/usr/local/bin/rpki-rtr` or wherever
+   you've installed it on your system) and its home directory to be
+   the `rpki-rtr` data directory (`/var/rcynic/rpki-rtr` or whatever
+   you're using).  If you're using passwords to authenticate instead
+   of ssh keys (not recommended) you will always need to set the
+   password(s) here when configuring the userid(s).
+
+d. Configure the `.ssh/authorized_keys` file for your clients; if you're
+   using the example values given above, this would be
+   `/var/rcynic/rpki-rtr/.ssh/authorized_keys`.  You can have multiple
+   SSH clients using different keys all logging in as the same SSH
+   user, you just have to list all of the SSH keys here.  You may want
+   to consider using a `command=` parameter in the key line (see the
+   `sshd(8)` man page) to lock down the SSH keys listed here so that
+   they can only be used to run the `rpki-rtr` service.
+
+   If you're running a separate `sshd` for this purpose, you might also
+   want to add an `!AuthorizedKeysFile` entry pointing at this
+   `authorized_keys` file so that the server will only use this
+   `authorized_keys` file regardless of what other user accounts might
+   exist on the machine:
+
+   {{{
+   AuthorizedKeysFile /var/rcynic/rpki-rtr/.ssh/authorized_keys
+   }}}
+
+   There's a sample `sshd.conf` in the source directory.  You will have
+   to modify it to suit your environment.  The most important part is
+   the `Subsystem` line, which runs the `server.sh` script as the
+   "`rpki-rtr`" service, as required by the protocol specification.
+
+=== Running rpki-rtr listener ===
+
+`rpki-rtr listener` is a free-standing plain TCP server which just
+listens on a TCP socket then forks a child process running `rpki-rtr server`.
+
+All of the [[#under-inetd|caveats regarding plain TCP]] apply to `rpki-rtr listener`.
+
+`rpki-rtr listener` takes one required argument, the TCP port number
+on which to listen; it also accepts a second argument which specifies
+the rcynic output directory, like `rpki-rtr server`.
+
+{{{
+/usr/local/bin/rpki-rtr listener 42420 /var/rcynic/rpki-rtr
+}}}
+
+=== Other transports ===
+
+You can also run this code under `xinetd`, or the netpipes "`faucet`"
+program, or `stunnel`...other than a few lines that might need hacking
+to log the connection peer properly, the program really doesn't care.
+
+You //should//, however, care whether the channel you have chosen is
+secure; it doesn't make a lot of sense to go to all the trouble of
+checking RPKI data then let the bad guys feed bad data into your
+routers anyway because you were running the rpki-rtr link over an
+unsecured TCP connection.
+
+== Other commands ==
+
+`rpki-rtr` has two other commands which might be useful for debugging:
+
+a. `rpki-rtr client` implements a dumb client program for this
+   protocol, over SSH, raw TCP, or by invoking `rpki-rtr server` 
+   directly in a subprocess.  The output is not expected to be useful
+   except for debugging.  Either run it locally where you run the
+   cron job, or run it anywhere on the net, as in
+   {{{
+   $ rpki-rtr client tcp <hostname> <port>
+   }}}
+
+b. `rpki-rtr show` will display a text dump of pre-digested data
+   files in the current directory.

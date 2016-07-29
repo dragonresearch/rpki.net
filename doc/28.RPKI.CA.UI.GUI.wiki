@@ -1,0 +1,47 @@
+[[TracNav(doc/RPKI/TOC)]]
+
+[[PageOutline]]
+
+= Installing and Configuring =
+
+* [[wiki:GUI/Installing]] for new installs
+* [[wiki:GUI/Upgrading]] for upgrading from a previous install
+* [[wiki:GUI/Configuring]]
+* [[wiki:GUI/UserModel]] for instructions on managing users
+
+\\
+\\
+= Using the GUI =
+
+= GUI Examples =
+\\
+== Logging in to the GUI ==
+[[Image(htdocs:gui-pics/01-login.jpg)]]
+\\
+\\
+== The Dashboard - Let's Make a ROA ==
+[[Image(htdocs:gui-pics/02-dashboard.jpg)]]
+\\
+\\
+== ROA List Currently Empty, So Let's Create One ==
+[[Image(htdocs:gui-pics/03-roas.jpg)]]
+\\
+\\
+== Choose an AS and Prefix - Let MaxLen Default ==
+[[Image(htdocs:gui-pics/04-create-roa.jpg)]]
+\\
+\\
+== What Will the Consequences Be? - Confirm OK ==
+[[Image(htdocs:gui-pics/05-are-you-sure.jpg)]]
+\\
+\\
+== Now We Can See ROAs - Let's Look at Routes ==
+ [[Image(htdocs:gui-pics/06-roa-list.jpg)]]
+\\
+\\
+== Real Effect on Routing Table ==
+[[Image(htdocs:gui-pics/07-route view.jpg)]]
+\\
+\\
+== Ghostbusters etc. are Similar ==
+				    

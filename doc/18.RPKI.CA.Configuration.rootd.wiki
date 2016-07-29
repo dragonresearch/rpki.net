@@ -1,0 +1,216 @@
+{{{
+#!comment
+
+******************************************************************************
+THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
+
+Generated from $Id: rpki-confgen.xml 6070 2015-03-23 18:04:06Z melkins $
+            by $Id: rpki-confgen 5856 2014-05-31 18:32:19Z sra $
+******************************************************************************
+
+}}}
+[[TracNav(doc/RPKI/TOC)]]
+[[PageOutline]]
+
+= [rootd] section = #rootd
+
+You don't need to run rootd unless you're IANA, are certifying private
+address space, or are an RIR which refuses to accept IANA as the root
+of the public address hierarchy.
+
+Ok, if that wasn't enough to scare you off: rootd is a mess, and needs
+to be rewritten, or, better, merged into rpkid. It doesn't use the
+publication protocol, and it requires far too many configuration
+parameters.
+
+rootd was originally intended to be a very simple program which
+simplified rpkid enormously by moving one specific task (acting as the
+root CA of an RPKI certificate hierarchy) out of rpkid. As the
+specifications and code (mostly the latter) have evolved, however,
+this task has become more complicated, and rootd would have to become
+much more complicated to keep up.
+
+Don't run rootd unless you're sure that you need to do so.
+
+Still think you need to run rootd? OK, but remember, you have been
+warned....
+
+rootd's default configuration file is the system `rpki.conf` file.
+Start rootd with "`-c filename`" to choose a different configuration
+file. All options are in the "`[rootd]`" section. Certificates and
+keys may be in either DER or PEM format.
+
+== bpki-ta == #bpki-ta
+
+Where rootd should look for the BPKI trust anchor. All BPKI
+certificate verification within rootd traces back to this trust
+anchor. Don't change this unless you really know what you are doing.
+
+{{{
+#!ini
+bpki-ta = ${myrpki::bpki_servers_directory}/ca.cer
+}}}
+
+== rootd-bpki-crl == #rootd-bpki-crl
+
+BPKI CRL. Don't change this unless you really know what you are doing.
+
+{{{
+#!ini
+rootd-bpki-crl = ${myrpki::bpki_servers_directory}/ca.crl
+}}}
+
+== rootd-bpki-cert == #rootd-bpki-cert
+
+rootd's own BPKI EE certificate. Don't change this unless you really
+know what you are doing.
+
+{{{
+#!ini
+rootd-bpki-cert = ${myrpki::bpki_servers_directory}/rootd.cer
+}}}
+
+== rootd-bpki-key == #rootd-bpki-key
+
+Private key corresponding to rootd's own BPKI EE certificate. Don't
+change this unless you really know what you are doing.
+
+{{{
+#!ini
+rootd-bpki-key = ${myrpki::bpki_servers_directory}/rootd.key
+}}}
+
+== child-bpki-cert == #child-bpki-cert
+
+BPKI certificate for rootd's one and only up-down child (RPKI engine
+to which rootd issues an RPKI certificate). Don't change this unless
+you really know what you are doing.
+
+{{{
+#!ini
+child-bpki-cert = ${myrpki::bpki_servers_directory}/child.cer
+}}}
+
+== server-host == #server-host
+
+Server host on which rootd should listen.
+
+{{{
+#!ini
+server-host = ${myrpki::rootd_server_host}
+}}}
+
+== server-port == #server-port
+
+Server port on which rootd should listen.
+
+{{{
+#!ini
+server-port = ${myrpki::rootd_server_port}
+}}}
+
+== rpki-root-dir == #rpki-root-dir
+
+Where rootd should write its output. Yes, rootd should be using pubd
+instead of publishing directly, but it doesn't. This needs to match
+pubd's configuration.
+
+{{{
+#!ini
+rpki-root-dir = ${myrpki::publication_base_directory}
+}}}
+
+== rpki-base-uri == #rpki-base-uri
+
+rsync URI corresponding to directory containing rootd's outputs.
+
+{{{
+#!ini
+rpki-base-uri = rsync://${myrpki::publication_rsync_server}/${myrpki::publication_rsync_module}/
+}}}
+
+== rpki-root-cert-uri == #rpki-root-cert-uri
+
+rsync URI for rootd's root (self-signed) RPKI certificate.
+
+{{{
+#!ini
+rpki-root-cert-uri = rsync://${myrpki::publication_rsync_server}/${myrpki::publication_root_module}/root.cer
+}}}
+
+== rpki-root-key == #rpki-root-key
+
+Private key corresponding to rootd's root RPKI certificate.
+
+{{{
+#!ini
+rpki-root-key = ${myrpki::bpki_servers_directory}/root.key
+}}}
+
+== rpki-root-cert == #rpki-root-cert
+
+Filename (as opposed to rsync URI) of rootd's root RPKI certificate.
+
+{{{
+#!ini
+rpki-root-cert = ${myrpki::publication_root_cert_directory}/root.cer
+}}}
+
+== rpki-subject-pkcs10 == #rpki-subject-pkcs10
+
+Where rootd should stash a copy of the PKCS #10 request it gets from
+its one (and only) child
+
+{{{
+#!ini
+rpki-subject-pkcs10 = ${myrpki::bpki_servers_directory}/rootd.subject.pkcs10
+}}}
+
+== rpki-subject-lifetime == #rpki-subject-lifetime
+
+Lifetime of the one and only RPKI certificate rootd issues.
+
+{{{
+#!ini
+rpki-subject-lifetime = 30d
+}}}
+
+== rpki-root-crl == #rpki-root-crl
+
+Filename (relative to rootd-base-uri and rpki-root-dir) of the CRL for
+rootd's root RPKI certificate.
+
+{{{
+#!ini
+rpki-root-crl = root.crl
+}}}
+
+== rpki-root-manifest == #rpki-root-manifest
+
+Filename (relative to rootd-base-uri and rpki-root-dir) of the
+manifest for rootd's root RPKI certificate.
+
+{{{
+#!ini
+rpki-root-manifest = root.mft
+}}}
+
+== rpki-class-name == #rpki-class-name
+
+Up-down protocol class name for RPKI certificate rootd issues to its
+one (and only) child.
+
+{{{
+#!ini
+rpki-class-name = ${myrpki::handle}
+}}}
+
+== rpki-subject-cert == #rpki-subject-cert
+
+Filename (relative to rootd-base-uri and rpki-root-dir) of the one
+(and only) RPKI certificate rootd issues.
+
+{{{
+#!ini
+rpki-subject-cert = ${myrpki::handle}.cer
+}}}

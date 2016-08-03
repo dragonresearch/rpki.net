@@ -8,7 +8,7 @@ toolkit under the same BSD-style license, now moved to GitHub.
 ## Documentation
 
 There's a
-[pile of find documentation salvaged from the old wiki](doc/)
+[pile of documentation salvaged from the old wiki](doc/)
 in the doc/ subdirectory: see the README in that directory for details.
 
 Be warned that the existing documentation is for the "old-trunk"

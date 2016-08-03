@@ -1,0 +1,51 @@
+= rpki.net project site =
+
+This is the Trac site for the rpki.net project.  The project provides a free, BSD License, open source, complete system for the Internet Registry or ISP.  It includes separate components which may be combined to suit your needs:
+* Certification Engine
+* Relying Party Cache (sometimes called a 'validator')
+* rpki-rtr protocol, to feed the data to routers doing RPKI-based origin validation
+* GUI for use by users of the 'hosted' model (i.e. customers who do not run their own CA)
+* Web Reporting Pages so you can see what your cache has found
+* Creation of pseudo-IRR data for those who wish to feed RPSL toolchains
+
+If you're looking for the general RPKI Wiki (not specific to our software), it's [[http://wiki.rpki.net/|over here]].
+
+== Downloads ==
+
+See [[/wiki/doc/RPKI|the documentation]] for how to download and install the code.
+
+We now have [[http://download.rpki.net/APT/debian/|Debian packages]], [[http://download.rpki.net/APT/ubuntu/|Ubuntu packages]], and [[http://download.rpki.net/FreeBSD_Packages/|FreeBSD ports]] of the code.
+
+You can also [[/browser|browse the source code]].
+
+== Documentation ==
+
+Primary [[/wiki/doc/RPKI|documentation for the code]] is here, in the Trac wiki.  PDF and flat text forms derived from are available in [[/browser|the source code repository]].
+
+== Bug Reports ==
+
+The [[/query|ticket queue]] is open for public read.  Please [[/register|register for an account]] if you need to create a ticket.
+
+== Monitoring ==
+
+[[http://www.hactrn.net/opaque/rcynic/|Current status of RPKI system as seen by one relying party]].
+
+== TLS Certificate ==
+
+If you're trying to connect to this site (https://rpki.net/) using
+HTTPS, you may see warnings about an untrusted certificate.  There's
+nothing wrong, this just means that your web browser doesn't know
+about the Certification Authority that we use.
+
+You can [[http://www.hactrn.net/cacert.asc|download a PGP-signed version of the HACTRN CA certificate]] to fix this.
+
+If you don't care about checking the CA certificate and just want the
+warning to go away, you can set a browser exception or just
+[[http://www.hactrn.net/cacert.cer|install the HACTRN CA certificate]]
+without checking it.
+
+== APRICOT 2013 ==
+
+Hot link to information for [[wiki:APRICOT-2013-Hackathon|APRICOT 2013 Hackathon]].
+
+Thanks to JPNIC, [[http://psg.com/rpki/RPKI-CA-RP.ova |a VirtualBox appliance image]] is available, [[http://psg.com/rpki/RPKI-VM.pdf |with documentation]].

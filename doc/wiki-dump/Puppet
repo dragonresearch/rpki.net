@@ -1,0 +1,94 @@
+= Setting up a RPKI testbed with Puppet
+
+This document outlines how Google stood up a few virtual machines to
+serve as a testbed for evaluating and running RPKI.net packages.
+The rpki-mgmt project, at https://github.com/google/rpki-mgmt, contains
+puppet modules and a setup script to generate a pupet manifest for the
+testbed.
+
+The testbed consists of:
+
+* A puppet server
+* A RPKI Certificate Authority, with Relying Party tools
+* One or more log servers
+* One or more publication servers
+
+All of the machines, except for the publication servers, are intended to
+run on an internal/private network. The publication servers collect RPKI
+data from the CA (Certificate Authority) and republish to the world.
+
+Currently the puppet modules are fairly tightly coulpled to the exact
+configuration and host OS (Debian Jessie) used by Google. Hopefully
+future versions of the module will be more flexible.
+
+
+=  Information gathering
+
+To begin with, you will need to collect/set-up the following:
+
+* DNS name for all machines. The host names should match the DNS names,
+ as the puppet modules make use of puppet's node certificates for
+ secure connections to the log servers, and puppet's node certificates
+ are based on the node's hostname. For example:
+ {{{
+    pup.rpki.example.com       IN      A       10.1.1.10
+    ca.rpki.example.com        IN      A       10.1.1.11
+    log.rpki.example.com       IN      A       10.1.1.12
+    pub.rpki.example.com       IN      A       10.1.1.13
+}}}
+
+* (Optionally) Banner text for publication servers
+* (Optionally) Network range to restrict ssh acceess. Default is unrestricted (0.0.0.0/0)
+* (Optionally) Any additional puppet configuration for all nodes (e.g.user(s) to create, their associated ssh key(s)).
+
+= Install VMs
+
+Create all the VMs and perform basic setup (IP address, resolver config, etc.)
+
+== Set up pup.rpki.example.com
+  - apt-get install puppetmaster
+  - Edit the '[main]' section /etc/puppet/puppet.conf
+    - server=puppet.rpki.example.com
+    - pluginsync=true
+
+== Run script to generate puppet config
+The rpki-mgmt generate script will prompt you for all the information on node names that
+was gathered earlier.
+
+  - wget https://github.com/google/rpki-mgmt/raw/dev/generate-rpki-mgmt-config.sh
+  - bash ./generate-rpki-mgmt-config.sh
+
+== Use newly generated puppet config to configure puppet master
+  - cp /root/rpki-mgmt.pp /etc/puppet/manifests/site.pp
+  - puppet agent --enable
+  - puppet agent -t
+
+== Enroll all machines with the puppet master
+  - apt-get install puppet
+  - edit /etc/puppet/puppet.conf [main] section
+    - add 'server=pup.rpki.example.com'
+    - add 'pluginsync=true'
+  - puppet agent --enable
+  - puppet agent -t
+    - this will print a message:
+      Exiting; no certificate found and waitforcert is disabled
+    - Ignore the error and continue with the next machine
+
+== Sign puppet certificates
+- On pup.rpki.example.com
+  - puppet cert list
+  - puppet cert sign --all
+
+== Run puppet on log servers
+  - puppet agent -t
+
+== Run puppet on all other servers
+  - puppet agent -t
+
+== Install rpki software on rpki master node(s)
+  - apt-get install rpki-ca rpki-rp
+  - you'll need to set mysql admin password
+
+== Configure RPKI.net software
+At this point your testbed environment should be set up, and you are ready to continue and configure the RPKI.net software. More information on that process can be found at
+  - https://rpki.net/wiki/doc/RPKI/CA

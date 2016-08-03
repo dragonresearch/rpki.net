@@ -1,0 +1,211 @@
+Quick guide to installing RPKI relying party software for JANOG hackathon, February 2013.  This page will probably be renamed at some point in the future, the short name was chosen to be something we could write on a whiteboard.
+
+== Prepackaged RP software ==
+
+JPNIC has built a
+[https://www.virtualbox.org/ VirtualBox]
+[http://psg.com/rpki/RPKI-CA-RP.ova appliance image of Ubuntu 12.04 LTS with RPKI relying party software]
+already installed,
+[http://psg.com/rpki/RPKI-VM.pdf with documentation];
+if that works for you, just use it.
+
+If you want to install your own software:
+
+* If  you're running Ubuntu 12.04 LTS, you can try the pre-built Ubuntu package at http://download.rpki.net/Ubuntu_Packages/rpki-rp_0.5045_i386.deb
+
+* If you're running FreeBSD 8, you can try the pre-built FreeBSD package at http://download.rpki.net/FreeBSD_Packages/rpki-rp-0.5045.tbz
+
+* If you're running some other version of FreeBSD (or if you just don't like pre-built packages), you can try the FreeBSD port skeleton at http://download.rpki.net/FreeBSD_Packages/rpki-rp-port.tgz
+
+* Otherwise, you'll have to compile from source as described at [wiki:doc/RPKI/Installation Installation], but note that since for today we're only concerned with the relying party tools, you don't need to do everything on that page.
+
+If you're installing from packages or ports, you should get a working rcynic installation already set up under cron, running once an hour, with the default set of trust anchor locators (TALs) already installed.
+You might want to edit rcynic's configuration file (/usr/local/etc/rcynic.conf on FreeBSD, /etc/rcynic.conf on Ubuntu), but the default configuration should suffice for today's testing.
+
+The installed crontab will only run rcynic once per hour.  This is what you want for normal operation, but is a little slow for test purposes, so you might want to edit the crontab:
+
+{{{
+  $ sudo crontab -u rcynic -e
+}}}
+
+then change the first field of the crontab entry (a randomly-selected minute) to something like "*/10" to make it run every ten minutes.
+
+Even with the package or port, you will need to set up the listener
+for the rpki-rtr protocol manually.  For this, you will need to pick a
+port number, we don't have one assigned.  For this discussion we will
+call it 43779.  How you do this depends on whether you are running inetd or xinetd.
+
+For FreeBSD with inetd, you will need to add entries to /etc/services and /etc/inetd.conf
+
+/etc/services:
+{{{
+rpki-rtr		 43779/tcp	   #RPKI-RTR protocol
+}}}
+
+/etc/inetd.conf:
+{{{
+rpki-rtr	stream	tcp	nowait	nobody	/usr/local/bin/rtr-origin	rtr-origin --server /var/rpki-rtr
+}}}
+
+For Ubuntu, you probably need to use xinetd.  xinetd may not be installed by default, and is not (yet) listed as a package dependency for rpki-rp, so you may need to install it:
+
+{{{
+  $ sudo apt-get install xinetd
+}}}
+
+You will need to create a xinetd configuration file for the rpki-rtr service:
+
+/etc/xinetd.d/rpki-rtr:
+{{{
+service rpki-rtr
+{
+    socket_type    = stream
+    protocol       = tcp
+    port	   = 43779
+    wait           = no
+    user           = nobody
+    server         = /usr/bin/rtr-origin
+    server_args	   = --server /var/rpki-rtr
+}
+}}}
+
+And remember to
+
+{{{
+  $ sudo service xinetd restart
+}}}
+
+== Testing rpki-rtr service ==
+
+To test the rpki-rtr service you've installed, you can use the rtr-origin program (yes, the same program that acts as the rpki-rtr server) as a test client:
+
+{{{
+  $ rtr-origin --client tcp localhost 43779
+}}}
+
+This will attempt to connect to the rpki-rtr service on your machine
+using the given port.  If the service is running, you will either get
+a listing of the current database content, or a message warning that
+the server has no data yet.  In either of these cases, the client will
+stay connected to the server, waiting for updates.
+
+If the client does not connect to the server, or exits with an error
+message, something is wrong.  Sadly, there are many interesting ways
+for this to fail (for example: at the previous JANOG hackathon, we saw
+a case where it failed because inetd had TCP wrappers support enabled,
+so inetd was accepting the connection but not starting the server
+process).  If this happens to you, we will have to debug to see what
+is wrong.
+
+
+== Building from source ==
+
+If you need to build from source:
+
+Download the source code, either via subversion:
+
+{{{
+  $ svn co http://subvert-rpki.hactrn.net/trunk/
+}}}
+
+or from a snapshot tarball:
+
+{{{
+  $ wget http://download.rpki.net/rpki-trunk.tar.xz
+  $ xzcat rpki-trunk.tar.xz | tar xf -
+}}}
+
+For the relying party tools, the packages you will need to install
+are:
+
+* Python
+* lxml
+* xsltproc
+* rrdtool
+* chrootuid
+
+See the installation page for details on platform packages and
+download URLs.
+
+If you forget any of these, ./configure will remind you.
+
+Once you have these installed, follow the installation instructions on
+the installation page.  You only need the relying party tools, so  you
+can configure it with:
+
+{{{
+  $ ./configure --disable-ca-tools
+  $ make
+  $ sudo make install
+}}}
+
+Once you have the tools installed, you should go to the documentation for the [wiki:doc/RPKI/RP Relying Party tools], particularly the section on [wiki:doc/RPKI/RP#cronjob running the Relying Party tools under cron].
+
+You will need to create the /var/rpki-rtr directory manually, and chown it to be owned by the rcynic user:
+
+{{{
+  $ sudo mkdir /var/rpki-rtr
+  $ sudo chown rcynic:rcynic /var/rpki-rtr
+}}}
+
+You will also need to set up a listener for the rpki-rtr service.  There are many ways to do this, but the most common one is to run rpki-rtr under inetd or xinetd.  Pick an available TCP port, and set up inetd or xinetd to run the command:
+
+{{{
+  rtr-origin --server /var/rpki-rtr
+}}}
+
+as the service for that port.
+
+If all goes well, at this point you should have a working RPKI cache, and can point routers that support the rpki-rtr protocol at the cache.
+
+== Prepackaged CA software ==
+
+The options for prepackaged version of the rpki.net CA tools are mostly the same as for the RP tools.
+
+JPNIC's appliance image may support the CA tools (ask them then update this page).
+
+If you want to install your own software:
+
+* If  you're running Ubuntu 12.04 LTS, you can try the pre-built Ubuntu package at http://download.rpki.net/Ubuntu_Packages/rpki-ca_0.5045_i386.deb
+
+* If you're running FreeBSD 8, you can try the pre-built FreeBSD package at http://download.rpki.net/FreeBSD_Packages/rpki-ca-0.5045.tbz
+
+* If you're running some other version of FreeBSD (or if you just don't like pre-built packages), you can try the FreeBSD port skeleton at http://download.rpki.net/FreeBSD_Packages/rpki-ca-port.tgz
+
+* Otherwise, you'll have to compile from source as described at [wiki:doc/RPKI/Installation Installation]; if you already did this //without// setting the --disable-ca-tools, you've already built everything;
+  if you did specify --disbale-ca-tools, you'll need to rebuild without that option.
+
+The prepackaged versions of the CA tools will need some configuration.  The package dependencies should pull in the MySQL server, but you will need to
+[wiki:doc/RPKI/CA/Configuration create an rpki.conf] (by editing the provided rpki.conf.sample), then
+[wiki:doc/RPKI/CA/MySQLSetup configure your MySQL databases] before you can start the daemons.
+
+You will also need to [wiki:doc/RPKI/CA/UI/GUI configure the GUI] before you can use the web interface to the CA tools.
+
+On FreeBSD, rpki.conf is in /usr/local/etc/rpki.conf; on Ubuntu, it's in /etc/rpki.conf.
+In both cases, you should find a rpki.conf.sample file in the same directory.
+
+Once you have configured the CA code and created its databases, you need to run:
+
+{{{
+  $ rpkic initialize
+}}}
+
+to create the BPKI (sic) certificates and keys needed by the daemons.
+
+If you get through all this, you should be ready to start the servers.  On FreeBSD, you do this by adding
+
+{{{
+rpkica_enable="YES"
+}}}
+
+to /etc/rc.conf, then running
+
+{{{
+  $ /usr/local/et/rc.d/rpki-ca start
+}}}
+
+On Ubuntu, the CA tools are under upstart control, so you should be able to start the daemons by running
+
+{{{
+  $ sudo initctl start rpki-ca
+}}}

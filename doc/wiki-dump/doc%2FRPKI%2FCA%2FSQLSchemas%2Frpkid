@@ -1,0 +1,8 @@
+= rpkid SQL schema =
+
+[[TracNav(doc/RPKI/TOC)]]
+[[PageOutline]]
+
+[[source:/trunk/rpkid/rpkid.sql|rpkid.sql]]
+
+[[Image(rpkid.png, title = "Diagram of rpkid.sql")]]

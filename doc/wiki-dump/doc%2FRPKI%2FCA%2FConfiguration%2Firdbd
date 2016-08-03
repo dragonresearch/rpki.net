@@ -1,0 +1,76 @@
+{{{
+#!comment
+
+******************************************************************************
+THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
+
+Generated from $Id: rpki-confgen.xml 6070 2015-03-23 18:04:06Z melkins $
+            by $Id: rpki-confgen 5856 2014-05-31 18:32:19Z sra $
+******************************************************************************
+
+}}}
+[[TracNav(doc/RPKI/TOC)]]
+[[PageOutline]]
+
+= [irdbd] section = #irdbd
+
+irdbd's default configuration file is the system `rpki.conf` file.
+Start irdbd with "`-c filename`" to choose a different configuration
+file. All options are in the "`[irdbd]`" section.
+
+Since irdbd is part of the back-end system, it has direct access to
+the back-end's SQL database, and thus is able to pull its own BPKI
+configuration directly from the database, and thus needs a bit less
+configuration than the other daemons.
+
+== sql-database == #sql-database
+
+MySQL database name for irdbd.
+
+{{{
+#!ini
+sql-database = ${myrpki::irdbd_sql_database}
+}}}
+
+== sql-username == #sql-username
+
+MySQL user name for irdbd.
+
+{{{
+#!ini
+sql-username = ${myrpki::irdbd_sql_username}
+}}}
+
+== sql-password == #sql-password
+
+MySQL password for irdbd.
+
+{{{
+#!ini
+sql-password = ${myrpki::irdbd_sql_password}
+}}}
+
+== server-host == #server-host
+
+Host on which irdbd should listen for HTTP service requests.
+
+{{{
+#!ini
+server-host = ${myrpki::irdbd_server_host}
+}}}
+
+== server-port == #server-port
+
+Port on which irdbd should listen for HTTP service requests.
+
+{{{
+#!ini
+server-port = ${myrpki::irdbd_server_port}
+}}}
+
+== startup-message == #startup-message
+
+String to log on startup, useful when debugging a collection of irdbd
+instances at once.
+
+No default value.

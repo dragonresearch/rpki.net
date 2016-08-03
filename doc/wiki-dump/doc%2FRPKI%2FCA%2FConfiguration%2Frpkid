@@ -1,0 +1,129 @@
+{{{
+#!comment
+
+******************************************************************************
+THIS PAGE WAS GENERATED AUTOMATICALLY, DO NOT EDIT.
+
+Generated from $Id: rpki-confgen.xml 6070 2015-03-23 18:04:06Z melkins $
+            by $Id: rpki-confgen 5856 2014-05-31 18:32:19Z sra $
+******************************************************************************
+
+}}}
+[[TracNav(doc/RPKI/TOC)]]
+[[PageOutline]]
+
+= [rpkid] section = #rpkid
+
+rpkid's default config file is the system `rpki.conf` file. Start
+rpkid with "`-c filename`" to choose a different config file. All
+options are in the "`[rpkid]`" section. BPKI Certificates and keys may
+be in either DER or PEM format.
+
+== sql-database == #sql-database
+
+MySQL database name for rpkid.
+
+{{{
+#!ini
+sql-database = ${myrpki::rpkid_sql_database}
+}}}
+
+== sql-username == #sql-username
+
+MySQL user name for rpkid.
+
+{{{
+#!ini
+sql-username = ${myrpki::rpkid_sql_username}
+}}}
+
+== sql-password == #sql-password
+
+MySQL password for rpkid.
+
+{{{
+#!ini
+sql-password = ${myrpki::rpkid_sql_password}
+}}}
+
+== server-host == #server-host
+
+Host on which rpkid should listen for HTTP service requests.
+
+{{{
+#!ini
+server-host = ${myrpki::rpkid_server_host}
+}}}
+
+== server-port == #server-port
+
+Port on which rpkid should listen for HTTP service requests.
+
+{{{
+#!ini
+server-port = ${myrpki::rpkid_server_port}
+}}}
+
+== irdb-url == #irdb-url
+
+HTTP service URL rpkid should use to contact irdbd. If irdbd is
+running on the same machine as rpkid, this can and probably should be
+a loopback URL, since nobody but rpkid needs to talk to irdbd.
+
+{{{
+#!ini
+irdb-url = http://${myrpki::irdbd_server_host}:${myrpki::irdbd_server_port}/
+}}}
+
+== bpki-ta == #bpki-ta
+
+Where rpkid should look for the BPKI trust anchor. All BPKI
+certificate verification within rpkid traces back to this trust
+anchor. Don't change this unless you really know what you are doing.
+
+{{{
+#!ini
+bpki-ta = ${myrpki::bpki_servers_directory}/ca.cer
+}}}
+
+== rpkid-cert == #rpkid-cert
+
+Where rpkid should look for its own BPKI EE certificate. Don't change
+this unless you really know what you are doing.
+
+{{{
+#!ini
+rpkid-cert = ${myrpki::bpki_servers_directory}/rpkid.cer
+}}}
+
+== rpkid-key == #rpkid-key
+
+Where rpkid should look for the private key corresponding to its own
+BPKI EE certificate. Don't change this unless you really know what you
+are doing.
+
+{{{
+#!ini
+rpkid-key = ${myrpki::bpki_servers_directory}/rpkid.key
+}}}
+
+== irdb-cert == #irdb-cert
+
+Where rpkid should look for irdbd's BPKI EE certificate. Don't change
+this unless you really know what you are doing.
+
+{{{
+#!ini
+irdb-cert = ${myrpki::bpki_servers_directory}/irdbd.cer
+}}}
+
+== irbe-cert == #irbe-cert
+
+Where rpkid should look for the back-end control client's BPKI EE
+certificate. Don't change this unless you really know what you are
+doing.
+
+{{{
+#!ini
+irbe-cert = ${myrpki::bpki_servers_directory}/irbe.cer
+}}}

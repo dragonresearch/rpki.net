@@ -1,0 +1,8 @@
+= pubd SQL Schema =
+
+[[TracNav(doc/RPKI/TOC)]]
+[[PageOutline]]
+
+[[source:/trunk/rpkid/pubd.sql|pubd.sql]]
+
+[[Image(pubd.png, title = "Diagram of pubd.sql")]]

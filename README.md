@@ -7,13 +7,24 @@ toolkit under the same BSD-style license, now moved to GitHub.
 
 ## Documentation
 
-You can find documentation salvaged from the old wiki in the doc/
-subdirectory: see the README in that directory for details.
+There's a
+[pile of find documentation salvaged from the old wiki](doc/)
+in the doc/ subdirectory: see the README in that directory for details.
+
+Be warned that the existing documentation is for the "old-trunk"
+branch, which is not what you want to be using these days (among other
+reasons, because "old-trunk" depends on obsolete third party packages
+which are no longer supported by their respective authors).  We will
+update the documentation for the current "master" branch as time and
+other work permits.
 
 ## Binary packages
 
-Binary packages for Ubuntu Xenial and Debian Jessie are available from
-https://download.rpki.net/APTng/.
+Binary packages for 
+[Ubuntu Xenial](https://download.rpki.net/APTng/ubuntu/)
+and
+[Debian Jessie](https://download.rpki.net/APTng/debian/)
+are available from https://download.rpki.net/APTng/.
 
 The source packaging scripts for FreeBSD are a bit stale, someday
 we'll fix that.

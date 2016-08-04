@@ -1,0 +1,51 @@
+# Installing the Web Portal for the First Time
+
+This page documents how to install the web portal software. **If you have
+previously installed the software**, see [doc/RPKI/CA/UI/GUI/Upgrading][1] for
+instructions.
+
+## Prerequisites
+
+This page assumes that you have already followed the steps to install the CA
+software (see [doc/RPKI/Installation][2])
+
+This page assumes that you have already created `/etc/rpki.conf` (see
+[doc/RPKI/CA/Configuration][3])
+
+## Create Database Tables
+
+This step creates the tables used by the web portal in the database. Run the
+following commands in the shell (you do not need to be _root_, just have
+permission to read `/etc/rpki.conf`):
+
+    
+    
+    rpki-manage syncdb --noinput
+    rpki-manage migrate
+    
+
+Note that at the end of the `syncdb` output you will see the following
+message:
+
+    
+    
+    Not synced (use migrations):
+     - rpki.gui.app
+    (use ./manage.py migrate to migrate these)
+    
+
+You should **ignore the message about running ./manage.py** since that script
+does not exist in our setup (we use `rpki-manage` instead`).
+
+## Next Step
+
+See [doc/RPKI/CA/UI/GUI/Configuring][4]
+
+   [1]: #_.wiki.doc.RPKI.CA.UI.GUI.Upgrading
+
+   [2]: #_.wiki.doc.RPKI.Installation
+
+   [3]: #_.wiki.doc.RPKI.CA.Configuration
+
+   [4]: #_.wiki.doc.RPKI.CA.UI.GUI.Configuring
+

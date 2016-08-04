@@ -1,0 +1,52 @@
+# Upgrading from a Previous Version
+
+  * See [wiki:doc/RPKI/CA/UI/GUI/Upgrading/BeforeMigration][1] for the special situation where you are upgrading from a release **prior to database migration support being added**. 
+
+This page describes the steps you must take if you upgrading from a previous
+version of the software that is already installed on the system. If you are
+installing for the first time see [doc/RPKI/CA/UI/GUI/Installing][2].
+
+Run the following commands at a shell prompt. Note that you do not need run
+these as the _root_ user, any user with permission to read `/etc/rpki.conf` is
+sufficient.
+
+    
+    
+    rpki-manage syncdb
+    rpki-manage migrate
+    
+
+Note that at the end of the `syncdb` output you will see the following
+message:
+
+    
+    
+    Not synced (use migrations):
+     - rpki.gui.app
+    (use ./manage.py migrate to migrate these)
+    
+
+You should **ignore the message about running ./manage.py** since that script
+does not exist in our setup (we use `rpki-manage` instead`).
+
+## Restart Apache
+
+In order to cause Apache to reload the web portal software using the newly
+installed software, it must be restarted. Execute the following command as
+_root_ in a shell:
+
+    
+    
+    apachectl restart
+    
+
+## Next Step
+
+See [doc/RPKI/CA/UI/GUI/Configuring][3]
+
+   [1]: #_.wiki.doc.RPKI.CA.UI.GUI.Upgrading.BeforeMigration
+
+   [2]: #_.wiki.doc.RPKI.CA.UI.GUI.Installing
+
+   [3]: #_.wiki.doc.RPKI.CA.UI.GUI.Configuring
+

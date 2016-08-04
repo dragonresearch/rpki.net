@@ -1,0 +1,86 @@
+# Web Portal
+
+The RPKI Web Portal currently requires Django 1.2 or later.
+
+Django upstream currently provides support for the previous two minor
+releases, which is 1.2 and 1.3 as of the writing of this page
+(<https://docs.djangoproject.com/en/1.3/internals/release-process/#supported-
+versions>).
+
+Targeting RHEL/CentOS/Scientific 6.x and Ubuntu 10.04 LTS. Should work with
+any newer Fedora or Ubuntu release as well, but those are not typically
+deployed as production servers.
+
+## Platforms
+
+### Ubuntu 10.04
+
+Ships with Django 1.1.1 which is out of upstream's support window. My
+recommendation is to install or rebuild a newer supported release.
+
+  * Ubuntu Maverick (10.10) and Natty (11.04) do have 1.2.x releases, but seem to be missing the security patches from the 1.2.7 release (<https://www.djangoproject.com/weblog/2011/sep/09/security-releases-issued/>). 
+  * The 1.3 release in Oneiric (11.10) also seems to be missing the security updates from that same advisory. 
+
+#### Installing Django 1.3.1 PPA
+
+This section describes how to install a pre-built PPA package for python-
+django 1.3.1.
+
+Put the following in your `/etc/apt/sources.list`:
+
+    
+    
+    deb http://ppa.launchpad.net/chris-lea/python-django/ubuntu lucid main 
+    deb-src http://ppa.launchpad.net/chris-lea/python-django/ubuntu lucid main 
+    
+
+Then run the following commands:
+
+    
+    
+    # apt-get update
+    # apt-get install python-django
+    
+
+  * [python-django PPAs][1]
+
+#### Rebuilding python-django from source deb
+
+The 1.3.1 package from Precise Pangolin (12.04 LTS) doesn't build due to build
+dependencies for newer python-sphinx than ships with 10.04 LTS. However, once
+built you can install the new python-django package on other systems without
+needing to upgrade other packages. You can also chose to build the 1.2.5
+release from Natty (11.04).
+
+To rebuild the python-django package:
+
+    
+    
+    # apt-get install dpkg-dev
+    # apt-get build-dep python-django
+    # tar zxvf python-django_1.2.5.orig.tar.gz
+    # cd Django-1.2.5
+    # tar zxvf ../python-django_1.2.5-1ubuntu1.debian.tar.gz
+    # dpkg-buildpackage
+    
+
+  * <https://launchpad.net/ubuntu/+source/python-django>
+
+### RHEL/CentOS/Scientific 6
+
+Django is not included in base OS, but Django 1.2 is available via EPEL
+(<http://fedoraproject.org/wiki/EPEL>).
+
+Once you have enabled the EPEL repository, you can run:
+
+    
+    
+    # yum install Django
+    
+
+#### SELinux
+
+Extra steps are required to run the Web Portal with SELinux enabled.
+
+   [1]: https://launchpad.net/~chris-lea/+archive/python-django
+

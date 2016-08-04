@@ -1,0 +1,5 @@
+# RPKI CA Out-Of-Band Setup Protocol
+
+Not documented yet. Eventually this will be a readable explanation of the out-
+of-band setup protocol.
+

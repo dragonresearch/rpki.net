@@ -1,0 +1,655 @@
+# rcynic RPKI validator
+
+`rcynic` is the core RPKI relying party tool, and is the code which performs
+the actual RPKI validation. Most of the other relying party tools just use
+`rcynic`'s output.
+
+The name is short for "cynical rsync", because `rcynic`'s task involves an
+interleaved process of `rsync` retrieval and RPKI validation.
+
+This code was developed on FreeBSD, and has been tested most heavily on
+FreeBSD versions 6-STABLE through 8-STABLE. It is also known to work on Ubuntu
+(12.04 LTS), Debian (Wheezy) and Mac OS X (Snow Leopard). In theory it should
+run on any reasonably POSIX-like system. As far as we know, `rcynic` does not
+use any seriously non-portable features, but neither have we done a POSIX
+reference manual lookup for every function call. Please report any portability
+problems.
+
+## Don't panic
+
+`rcynic` has a lot of options, but it attempts to choose reasonable defaults
+where possible. The installation process will create a basic working `rcynic`
+configuration for you and arrange for this to run hourly under cron. If all
+goes well, this should "just work".
+
+`rcynic` has the ability to do all of its work in a chroot jail. This used to
+be the default configuration, but integrating this properly with platform-
+specific packaging systems (FreeBSD ports, `apt-get` on Ubuntu and Debian,
+etc) proved impractical. You can still get this behavior if you need it, by
+[installing from source][1] and using the `--enable-rcynic-jail` option to
+`./configure`.
+
+The default configuration set up by `make install` and the various packaging
+systems will run `rcynic` under `cron` using the `rcynic-cron` wrapper script.
+See the [instructions for setting up your own cron jobs][2] if you need
+something more complicated; also see the [instructions for setting up
+hierarchical rsync][2] if you need to build a complex topology of rcynic
+validators.
+
+## Overview
+
+`rcynic` depends heavily on the OpenSSL `libcrypto` library, and requires a
+reasonably current version of OpenSSL with both RFC 3779 and CMS support.
+
+`rcynic` expects all certificates, CRLs, and CMS objects to be in DER format.
+`rcynic` stores its database using filenames derived from the RPKI rsync URIs
+at which the data are published.
+
+All configuration is via an OpenSSL-style configuration file, except for
+selection of the name of the configuration file itself. A few other parameters
+can also be set from the command line. The default name for the configuration
+is "`rcynic.conf`"; you can override this with the `-c` option on the command
+line. The configuration file uses OpenSSL's configuration file syntax, and you
+can set OpenSSL library configuration paramaters (eg, "engine" settings) in
+the config file as well. `rcynic`'s own configuration parameters are in a
+section called "`[rcynic]`".
+
+Most configuration parameters are optional and have defaults which should do
+something reasonable if you are running `rcynic` in a test directory. If
+you're running rcynic as a system program, perhaps under `cron` via the
+`rcynic-cron` script, you'll want to set additional parameters to tell
+`rcynic` where to find its data and where to write its output (the
+installation process sets these parameters for you). The configuration file
+itself, however, is not optional. In order for `rcynic` to do anything useful,
+your configuration file **MUST** at minimum tell `rcynic` where to find one or
+more RPKI trust anchors or trust anchor locators (TALs).
+
+### Trust anchors
+
+  * To specify a trust anchor, use the `trust-anchor` directive to name the local file containing the trust anchor. 
+  * To specify a trust anchor locator (TAL), use the `trust-anchor-locator` directive to name a local file containing the trust anchor locator. 
+  * To specify a directory containing trust anchors or trust anchor locators, use the `trust-anchor-directory` directive to name the directory. Files in the specified directory with names ending in `".cer"` will be processed as trust anchors, while files with names ending in `".tal"` will be processed as trust anchor locators. 
+
+You may use a combination of these methods if necessary.
+
+Trust anchors are represented as DER-formatted X.509 self-signed certificate
+objects, but in practice trust anchor locators are more common, as they reduce
+the amount of locally configured data to the bare minimum and allow the trust
+anchor itself to be updated without requiring reconfiguration of validators
+like rcynic. A trust anchor locator is a file in the format specified in
+[RFC-6490][3], consisting of the rsync URI of the trust anchor followed by the
+Base64 encoding of the trust anchor's public key.
+
+Strictly speaking, trust anchors do not need to be self-signed, but many
+programs (including OpenSSL) assume that trust anchors will be self-signed.
+See the `allow-non-self-signed-trust-anchor` configuration option if you need
+to use a non-self-signed trust anchor, but be warned that the results, while
+technically correct, may not be useful.
+
+See the `make-tal.sh` script in this directory if you need to generate your
+own TAL file for a trust anchor.
+
+As of this writing, there still is no single global trust anchor for the RPKI
+system, so you have to provide separate trust anchors for each Regional
+Internet Registry (RIR) which is publishing RPKI data. The installation
+process installs the ones it knows about.
+
+Example of a minimal config file specifying nothing but trust anchor locators:
+
+    
+    
+    [rcynic]
+    
+    trust-anchor-locator.0 = trust-anchors/apnic.tal
+    trust-anchor-locator.1 = trust-anchors/ripe.tal
+    trust-anchor-locator.2 = trust-anchors/afrinic.tal
+    trust-anchor-locator.3 = trust-anchors/lacnic.tal
+    
+
+Eventually, this should all be collapsed into a single trust anchor, so that
+relying parties don't need to sort this out on their own, at which point the
+above configuration could become something like:
+
+    
+    
+    [rcynic]
+    
+    trust-anchor-locator = trust-anchors/iana.tal
+    
+
+### Output directories
+
+By default, `rcynic` uses two writable directory trees:
+
+`unauthenticated`::
+
+> Raw data fetched via `rsync`. In order to take full advantage of `rsync`'s
+optimized transfers, you should preserve and reuse this directory across
+`rcynic` runs, so that `rcynic` need not re-fetch data that have not changed.
+
+`authenticated`::
+
+> Data which `rcynic` has checked. This is the real output of the validation
+process.
+
+`authenticated` is really a symbolic link to a directory with a name of the
+form "`authenticated`._&lt;timestamp&gt;_", where _&lt;timestamp&gt;_ is an
+ISO 8601 timestamp like `2001-04-01T01:23:45Z`. `rcynic` creates a new
+timestamped directory every time it runs, and moves the symbolic link as an
+atomic operation when the validation process completes. The intent is that
+`authenticated` always points to the most recent usable validation results, so
+that programs which use `rcynic`'s output don't need to worry about whether an
+`rcynic` run is in progress.
+
+`rcynic` installs trust anchors specified via the `trust-anchor-locator`
+directive in the `unauthenticated` tree just like any other fetched object,
+and copies them into the `authenticated` trees just like any other object once
+they pass `rcynic`'s checks.
+
+`rcynic` copies trust anchors specified via the `trust-anchor` directive into
+the top level directory of the `authenticated` tree with filenames of the form
+_&lt;xxxxxxxx&gt;_`.`_&lt;n&gt;_`.cer`, where _&lt;xxxxxxxx&gt;_ and
+_&lt;n&gt;_ are the OpenSSL object name hash and index within the resulting
+virtual hash bucket, respectively. These are the same values that OpenSSL's
+`c_hash` Perl script would produce. The reason for this naming scheme is that
+these trust anchors, by definition, are not fetched automatically, and thus do
+not really have publication URIs in the sense that every other object in these
+trees do. So `rcynic` uses a naming scheme which insures:
+
+  * that each trust anchor has a unique name within the output tree and 
+  * that trust anchors cannot be confused with certificates: trust anchors always go in the top level of the tree, data fetched via rsync always go in subdirectories. 
+
+Trust anchors and trust anchor locators taken from the directory named by the
+`trust-anchor-directory` directive will follow the same naming scheme trust
+anchors and trust anchor locators specified via the `trust-anchor` and `trust-
+anchor-locator` directives, respectively.
+
+## Usage and configuration
+
+### Logging levels
+
+`rcynic` has its own system of logging levels, similar to what `syslog()`
+uses, but customized to the specific task `rcynic` performs.
+
+`log_sys_err` | Error from operating system or library  
+---|---  
+`log_usage_err` | Bad usage (local configuration error)  
+`log_data_err` | Bad data (broken certificates or CRLs)  
+`log_telemetry` | Normal chatter about rcynic's progress  
+`log_verbose` | Extra verbose chatter  
+`log_debug` | Only useful when debugging  
+  
+### Command line options
+
+`-c` _configfile_ | Path to configuration file (default: `rcynic.conf`)  
+---|---  
+`-l` _loglevel_ | Logging level (default: `log_data_err`)  
+`-s` | Log via syslog  
+`-e` | Log via stderr when also using syslog  
+`-j` | Start-up jitter interval (see below; default: `600`)  
+`-V` | Print rcynic's version to standard output and exit  
+`-x` | Path to XML "summary" file (see below; no default)  
+  
+## Configuration file reference
+
+`rcynic` uses the OpenSSL `libcrypto` configuration file mechanism. All
+`libcrypto` configuration options (eg, for engine support) are available. All
+`rcynic`-specific options are in the "`[rcynic]`" section. You **MUST** have a
+configuration file in order for `rcynic` to do anything useful, as the
+configuration file is the only way to list your trust anchors.
+
+### authenticated
+
+Path to output directory (where `rcynic` should place objects it has been able
+to validate).
+
+Default: `rcynic-data/authenticated`
+
+### unauthenticated
+
+Path to directory where `rcynic` should store unauthenticatd data retrieved
+via `rsync`. Unless something goes horribly wrong, you want `rcynic` to
+preserve and reuse this directory across runs to minimize the network traffic
+necessary to bring your repository mirror up to date.
+
+Default: `rcynic-data/unauthenticated`
+
+### rsync-timeout
+
+How long (in seconds) to let `rsync` run before terminating the `rsync`
+process, or zero for no timeout. You want this timeout to be fairly long, to
+avoid terminating `rsync` connections prematurely. It's present to let you
+defend against evil `rsync` server operators who try to tarpit your connection
+as a form of denial of service attack on `rcynic`.
+
+Default: `300`
+
+### max-parallel-fetches
+
+Upper limit on the number of copies of `rsync` that `rcynic` is allowed to run
+at once. Used properly, this can speed up synchronization considerably when
+fetching from repositories built with sub-optimal tree layouts or when dealing
+with unreachable repositories. Used improperly, this option can generate
+excessive load on repositories, cause synchronization to be interrupted by
+firewalls, and generally creates create a public nuisance. Use with caution.
+
+As of this writing, values in the range 2-4 are reasonably safe. Values above
+10 have been known to cause problems.
+
+`rcynic` can't really detect all of the possible problems created by excessive
+values of this parameter, but if rcynic's report shows that both successful
+retrivial and skipped retrieval from the same repository host, that's a pretty
+good hint that something is wrong, and an excessive value here is a good first
+guess as to the cause.
+
+Default: `1`
+
+### rsync-program
+
+Path to the rsync program.
+
+Default: `rsync`, but you should probably set this variable rather than just
+trusting the `PATH` environment variable to be set correctly.
+
+### log-level
+
+Same as `-l` option on command line. Command line setting overrides config
+file setting.
+
+Default: `log_log_err`
+
+### use-syslog
+
+Same as `-s` option on command line. Command line setting overrides config
+file setting.
+
+Values: `true` or `false`.
+
+Default: `false`
+
+### use-stderr
+
+Same as -e option on command line. Command line setting overrides config file
+setting.
+
+Values: `true` or `false`.
+
+Default: `false`, but if neither `use-syslog` nor `use-stderr` is set, log
+output goes to `stderr`.
+
+### syslog-facility
+
+Syslog facility to use.
+
+Default: local0
+
+### syslog-priority-xyz
+
+(where xyz is an rcynic logging level, above)
+
+Override the syslog priority value to use when logging messages at this rcynic
+level.
+
+Defaults:
+
+`syslog-priority-log_sys_err` | `err`  
+---|---  
+`syslog-priority-log_usage_err` | `err`  
+`syslog-priority-log_data_err` | `notice`  
+`syslog-priority-log_telemetry` | `info`  
+`syslog-priority-log_verbose` | `info`  
+`syslog-priority-log_debug` | `debug`  
+  
+### jitter
+
+Startup jitter interval, same as `-j` option on command line. Jitter interval,
+specified in number of seconds. `rcynic` will pick a random number within the
+interval from zero to this value, and will delay for that many seconds on
+startup. The purpose of this is to spread the load from large numbers of
+`rcynic` clients all running under cron with synchronized clocks, in
+particular to avoid hammering the global RPKI `rsync` servers into the ground
+at midnight UTC.
+
+Default: `600`
+
+### lockfile
+
+Name of lockfile, or empty for no lock. If you run `rcynic` directly under
+cron, you should use this parameter to set a lockfile so that successive
+instances of rcynic don't stomp on each other. If you run `rcynic` under
+`rcynic-cron`, you don't need to touch this, as `rcynic-cron` maintains its
+own lock.
+
+Default: no lock
+
+### xml-summary
+
+Enable output of a per-host summary at the end of an `rcynic` run in XML
+format.
+
+Value: filename to which XML summary should be written; "-" will send XML
+summary to standard output.
+
+Default: no XML summary.
+
+### allow-stale-crl
+
+Allow use of CRLs which are past their `nextUpdate` timestamp. This is usually
+harmless, but since there are attack scenarios in which this is the first
+warning of trouble, it's configurable.
+
+Values: `true` or `false`.
+
+Default: `true`
+
+### prune
+
+Clean up old files corresponding to URIs that `rcynic` did not see at all
+during this run. `rcynic` invokes `rsync` with the `--delete` option to clean
+up old objects from collections that `rcynic` revisits, but if a URI changes
+so that `rcynic` never visits the old collection again, old files will remain
+in the local mirror indefinitely unless you enable this option.
+
+Note: Pruning only happens when `run-rsync` is true. When the `run-rsync`
+option is false, pruning is not done regardless of the setting of the prune
+option option.
+
+Values: `true` or `false`.
+
+Default: `true`
+
+### allow-stale-manifest
+
+Allow use of manifests which are past their `nextUpdate` timestamp. This is
+probably harmless, but since it may be an early warning of problems, it's
+configurable.
+
+Values: `true` or `false`.
+
+Default: `true`
+
+### require-crl-in-manifest
+
+Reject publication point if manifest doesn't list the CRL that covers the
+manifest EE certificate.
+
+Values: `true` or `false`.
+
+Default: `false`
+
+### allow-object-not-in-manifest
+
+Allow use of otherwise valid objects which are not listed in the manifest.
+This is not supposed to happen, but is probably harmless.
+
+Enabling this does, however, often result in noisier logs, as it increases the
+chance that `rcynic` will attempt to validate data which a CA removed from the
+manifest but did not completely remove and revoke from the repository.
+
+Values: `true` or `false`
+
+Default: `false`
+
+### allow-digest-mismatch
+
+Allow use of otherwise valid objects which are listed in the manifest with a
+different digest value.
+
+You probably don't want to touch this.
+
+Values: `true` or `false`
+
+Default: `true`
+
+### allow-crl-digest-mismatch
+
+Allow processing to continue on a publication point whose manifest lists a
+different digest value for the CRL than the digest of the CRL we have in hand.
+
+You probably don't want to touch this.
+
+Values: `true` or `false`
+
+Default: `true`
+
+### allow-non-self-signed-trust-anchor
+
+Experimental. Attempts to work around OpenSSL's strong preference for self-
+signed trust anchors.
+
+We're not going to explain this one in any further detail. If you really want
+to know what it does, Use The Source, Luke.
+
+**Do not even consider enabling this option unless you are intimately familiar with both X.509 and the internals of OpenSSL's `X509_verify_cert()` function and really know what you are doing.**
+
+Values: `true` or `false`.
+
+Default: `false`
+
+### run-rsync
+
+Whether to run `rsync` to fetch data. You don't generally want to change this
+except when building complex topologies where `rcynic` running on one set of
+machines acts as aggregators for another set of validators. A large ISP might
+want to build such a topology so that they could have a local validation cache
+in each POP while minimizing load on the global repository system and
+maintaining some degree of internal consistency between POPs. In such cases,
+one might want the `rcynic` instances in the POPs to validate data fetched
+from the aggregators via an external process, without the POP `rcynic`
+instances attempting to fetch anything themselves.
+
+Values: `true` or `false`.
+
+Default: `true`
+
+### use-links
+
+Whether to use hard links rather than copying valid objects from the
+unauthenticated to authenticated tree. Using links is slightly more fragile
+(anything that stomps on the unauthenticated file also stomps on the
+authenticated file) but is a bit faster and reduces the number of inodes
+consumed by a large data collection. At the moment, copying is the default
+behavior, but this may change in the future.
+
+Values: `true` or `false`.
+
+Default: `false`
+
+### rsync-early
+
+Whether to force `rsync` to run even when we have a valid manifest for a
+particular publication point and its `nextUpdate` time has not yet passed.
+
+This is an experimental feature, and currently defaults to **true**, which is
+the old behavior (running `rsync` regardless of whether we have a valid cached
+manifest). This default may change once we have more experience with
+`rcynic`'s behavior when run with this option set to `false`.
+
+Skipping the `rsync` fetch when we already have a valid cached manifest can
+significantly reduce the total number of `rsync` connections we need to make,
+and significantly reduce the load that each validator places on the
+authoritative publication servers. As with any caching scheme, however, there
+are some potential problems involved with not fetching the latest data, and we
+don't yet have enough experience with this option to know how this will play
+out in practice, which is why this is still considered experimental.
+
+Values: `true` or `false`
+
+Default: `true` (but may change in the future)
+
+### trust-anchor
+
+Specify one RPKI trust anchor, represented as a local file containing an X.509
+certificate in DER format. Value of this option is the pathname of the file.
+
+**No default**. 
+
+### trust-anchor-locator
+
+Specify one RPKI trust anchor locator, represented as a local file in the
+format specified in [RFC-6490][3]. This a simple text format containing an
+rsync URI and the RSA public key of the X.509 object specified by the URI; the
+first line of the file is the URI, the remainder is the public key in Base64
+encoded DER format.
+
+Value of this option is the pathname of the file.
+
+**No default**. 
+
+### trust-anchor-directory
+
+Specify a directory containing trust anchors, trust anchor locators, or both.
+Trust anchors in such a directory must have filenames ending in "`.cer`";
+trust anchor locators in such a directory must have names ending in "`.tal`";
+any other files will be skipped.
+
+This directive is an alternative to using the `trust-anchor` and trust-anchor-
+locator` directives. This is probably easier to use than the other trust
+anchor directives when dealing with a collection of trust anchors. This may
+change on that promised day when we have only a single global trust anchor to
+deal with, but we're not there yet.
+
+**No default**. 
+
+## Post-processing rcynic's XML output
+
+The distribution includes several post-processors for the XML output `rcynic`
+writes describing the actions it has taken and the validation status of the
+objects it has found.
+
+### rcynic-html
+
+`rcynic-html` converts `rcynic`'s XML output into a collection of HTML pages
+summarizing the results, noting problems encountered, and showing some history
+of `rsync` transfer times and repository object counts in graphical form.
+
+`rcynic-cron` runs `rcynic-html` automatically, immediately after running
+`rcynic`. If for some reason you need to run `rcynic-html` by hand, the
+command syntax is:
+
+    
+    
+    $ rcynic-html rcynic.xml /web/server/directory/
+    
+
+`rcynic-html` will write a collection of HTML and image files to the specified
+output directory, along with a set of RRD databases. `rcynic-html` will create
+the output directory if necessary.
+
+`rcynic-html` requires [`rrdtool`][4], a specialized database and graphing
+engine designed for this sort of work. You can run `rcynic-html` without
+`rrdtool` by giving it the `--no-show-graphs` option, but the result won't be
+as useful.
+
+`rcynic-html` gets its idea of where to find the `rrdtool` program from
+autoconf, which usually works. If for some reason it doesn't work in your
+environment, you will need to tell `rcynic-html` where to find `rrdtool`,
+using the `--rrdtool-binary` option:
+
+    
+    
+    $ rcynic-html --rrdtoolbinary /some/where/rrdtool rcynic.xml /web/server/directory/
+    
+
+### rcynic.xsl
+
+`rcynic.xsl` was an earlier attempt at the same kind of HTML output as
+[rcynic-html][5] generates. XSLT was a convenient language for our initial
+attempts at this, but as the processing involved got more complex, it became
+obvious that we needed a general purpose programming language.
+
+If for some reason XSLT works better in your environment than Python, you
+might find this stylesheet to be a useful starting point, but be warned that
+it's significantly slower than `rcynic-html`, lacks many features, and is no
+longer under development.
+
+### rcynic-text
+
+`rcynic-text` provides a quick flat text summary of validation results. This
+is useful primarily in test scripts ([smoketest][6] uses it).
+
+Usage:
+
+    
+    
+    $ rcynic-text rcynic.xml
+    
+
+### validation_status
+
+`validation_status` provides a flat text translation of the detailed
+validation results. This is useful primarily for checking the detailed status
+of some particular object or set of objects, perhaps using a program like
+`grep` or `awk` to filter `validation_status`'s output.
+
+Usage:
+
+    
+    
+    $ validation_status rcynic.xml
+    $ validation_status rcynic.xml | fgrep rpki.misbehaving.org
+    $ validation_status rcynic.xml | fgrep object_rejected
+    
+
+### rcynic-svn
+
+`rcynic-svn` is a tool for archiving `rcynic`'s results in a [Subversion][7]
+repository. `rcynic-svn` is not integrated into `rcynic-cron`, because this is
+not something that every relying party is going to want to do. However, for
+relying parties who want to analyze `rcynic`'s output over a long period of
+time, `rcynic-svn` may provide a useful starting point starting point.
+
+To use `rcynic-svn`, you first must set up a Subversion repository and check
+out a working directory:
+
+    
+    
+    $ svnadmin create /some/where/safe/rpki-archive
+    $ svn co file:///some/where/safe/rpki-archive /some/where/else/rpki-archive
+    
+
+The name can be anything you like, in this example we call it "`rpki-
+archive`". The above sequence creates the repository, then checks out an empty
+working directory `/some/where/else/rpki-archive`.
+
+The repository does not need to be on the same machine as the working
+directory, but it probably should be for simplicity unless you have some
+strong need to put it elsewhere.
+
+Once you have the repository and working directory set up, you need to arrange
+for `rcynic-svn` to be run after each `rcynic` run whose results you want to
+archive. One way to do this would be to run `rcynic-svn` in the same cron job
+as `rcynic-cron`, immediately after `rcynic-cron` and specifying the same lock
+file that `rcynic-cron` uses.
+
+Sample usage, assuming that `rcynic`'s data is in the usual place:
+
+    
+    
+    $ rcynic-svn --lockfile /var/rcynic/data/lock   \
+            /var/rcynic/data/authenticated          \
+            /var/rcynic/data/unauthenticated        \
+            /var/rcynic/data/rcynic.xml             \
+            /some/where/else/rpki-archive
+    
+
+where the last argument is the name of the Subversion working directory and
+the other arguments are the names of those portions of `rcynic`'s output which
+you wish to archive. Generally, the above set (`authenticated`,
+`unauthenticated`, and `rcynic.xml`) are the ones you want, but feel free to
+experiment.
+
+   [1]: #_.wiki.doc.RPKI.Installation.FromSource
+
+   [2]: #_.wiki.doc.RPKI.RP.RunningUnderCron
+
+   [3]: http://www.rfc-editor.org/rfc/rfc6490.txt
+
+   [4]: http://www.rrdtool.org/
+
+   [5]: #_.wiki.doc.RPKI.RP.rcynic#rcynichtml
+
+   [6]: #_.wiki.doc.RPKI.CA#smoketest
+
+   [7]: http://subversion.apache.org/
+

@@ -101,9 +101,8 @@ def main():
             urllib.urlretrieve(img_url, fn)
             sys.stderr.write("Wrote {}\n".format(fn))
 
-        html2markdown = subprocess.Popen(("html2markdown",),
-                                     stdin = subprocess.PIPE,
-                                     stdout = subprocess.PIPE)
+        html2markdown = subprocess.Popen(("html2markdown", "--no-skip-internal-links", "--reference-links"),
+                                         stdin = subprocess.PIPE, stdout = subprocess.PIPE)
         page.write(html2markdown.stdin)
         html2markdown.stdin.close()
         lines = html2markdown.stdout.readlines()

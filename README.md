@@ -18,6 +18,11 @@ which are no longer supported by their respective authors).  We will
 update the documentation for the current "master" branch as time and
 other work permits.
 
+## Signatures
+
+All commits to this repository on or after 2016-08-07 should be
+GPG-signed.
+
 ## Binary packages
 
 Binary packages for 

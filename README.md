@@ -27,7 +27,9 @@ GPG-signed.
 
 QuickStart guides for RP and CA on Ubuntu Xenial are [here](doc/quickstart/README.md)
 
-Binary packages for 
+Setup on Debian Jessie is similar, other than the APT URLs (below).
+
+Binary packages for
 [Ubuntu Xenial](https://download.rpki.net/APTng/ubuntu/)
 and
 [Debian Jessie](https://download.rpki.net/APTng/debian/)

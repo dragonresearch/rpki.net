@@ -1,7 +1,8 @@
 # DRL QuickStart Instructions
 
 These are quick start instructions for installing DRL CA and RP software
-on various platforms.  At the moment, only Ubuntu Xenial is covered.
+on various platforms.  At the moment, only Ubuntu Xenial is covered, but
+Debian Jessie is substantially similar, other than the APT URLs.
 More to come.
 
 ## Ubuntu Xenial 16.04 RPKI Relying Party Cache Install

@@ -3,29 +3,29 @@
 I wanted to build a DRLng (rrdp, integrated root CA, seriously reworked
 and meaner and leaner) Certificate Authority.
 
-  * I prefer Ubuntu these days. 
+  * I prefer Ubuntu these days.
   * I wanted to build it on Ubuntu Xenial because Xenial has the
-    upgraded TLS for rrdp.  
+    upgraded TLS for rrdp.
 
 ## System Requirements
 
 I built the following:
 
   * 32GB of hard disk, enough to leave headroom unless you plan a LOT of
-    certificates, as in thousands;  
-  * 2GB or RAM, as it still is a bit of a RAM hog; and 
-  * One CPU should be enough to start. 
+    certificates, as in thousands;
+  * 2GB or RAM, as it still is a bit of a RAM hog; and
+  * One CPU should be enough to start.
   * The server must not have an AAAA DNS RR unless it has working IPv6
-    connectivity.  
+    connectivity.
 
 ## Xenial Install
 
   * [16.04 Ubuntu Xenial LTS 64-bit server](http://releases.ubuntu.com/16.04/ubuntu-16.04-server-amd64.iso)
-  * I do a fairly basic install, OpenSSH, basic utilities, and grub 
-  * apt update and apt dist-upgrade of course 
+  * I do a fairly basic install, OpenSSH, basic utilities, and grub
+  * apt update and apt dist-upgrade of course
   * I install automatic updates, emacs-nox, ntp, ... with ansible. Note
     that ansible requires python2 and xenial installs python3. So I had to
-    install python2.7 
+    install python2.7
 
 I am lazy and log in as root as pretty much everything I do is going to
 require being root. If you like sudo, then just prefix a lot with it.
@@ -37,23 +37,23 @@ machine.
 
 Add the GPG public key for this repository (optional, but APT will whine
 unless you do this):
-    
+
     # wget -q -O /etc/apt/trusted.gpg.d/rpki.asc   https://download.rpki.net/APTng/apt-gpg-key.asc
-    
+
 Configure APT to use this repository (for Ubuntu Xenial):
 
     # wget -q -O /etc/apt/sources.list.d/rpki.list https://download.rpki.net/APTng/rpki.xenial.list
-    
+
 Update available packages:
-    
+
     # apt update
 
 Install the software:
-    
+
     # apt install rpki-rp rpki-ca
 
 500kg of packages will be installed. The daemons should also be started.
-    
+
     # /bin/ps axu | grep ^rpki
     rpki     28310  0.1  2.9 618940 59624 ?        Sl   06:33   0:01 (wsgi:rpkigui)    -k start
     rpki     28490  0.0  0.4  45216  9160 ?        Ss   06:33   0:00 /usr/bin/python /usr/lib/rpki/rpki-nanny
@@ -85,7 +85,7 @@ an odd place.
 The rcynic web page is likely not yet populated because the cron job to
 populate is generated for a socially polite cache which fetches once an
 hour.
-    
+
     # crontab -l -u rpki
     MAILTO=root
     42 * * * *      exec /usr/bin/rcynic-cron
@@ -113,9 +113,9 @@ pre [RFC 6810](http://www.rfc-editor.org/rfc/rfc6810.txt).
     EOF
 
 If you have to change it, remember to
-    
+
     # systemctl restart xinetd
-    
+
 The configuration for rcynic is in `/etc/rpki.conf`. Note that it says
 to use the trust anchors in the directory `/etc/rpki/trust-anchors`. You
 may want to change the set of trust anchors if you have unusual
@@ -152,18 +152,18 @@ If you will be running a publication server as opposed to publishing on
 some others' server, you need to get the rsync daemon working. First you
 need to tell the rsync daemon what it should serve. So configure
 `/etc/rsyncd.conf` as follows:
-    
+
     # cat > /etc/rsyncd.conf << EOF
     uid             = nobody
     gid             = rpki
-    
+
     [rpki]
         use chroot          = no
         read only           = yes
         transfer logging    = yes
         path                = /usr/share/rpki/publication
         comment             = RPKI publication
-    
+
     # the following is only of you plan to run a root CA
     [tal]
         use chroot          = no
@@ -174,7 +174,7 @@ need to tell the rsync daemon what it should serve. So configure
     EOF
 
 Then tell xinetd to run the rsync deamon when asked and then to restart xinetd
-    
+
     # cat > /etc/xinetd.d/rsync << EOF
     service rsync
     {
@@ -191,9 +191,9 @@ Then tell xinetd to run the rsync deamon when asked and then to restart xinetd
     EOF
 
 Remember to
-    
+
     # systemctl restart xinetd
-    
+
 
 ## CA Data Initialization
 
@@ -205,7 +205,7 @@ Before configuring the CA daemon and database, you should first restart the
 daemons.
 
     # systemctl restart rpki-ca
-    
+
 You should see the daemons running
 
     # /bin/ps axu | grep rpki | grep -v grep
@@ -217,7 +217,7 @@ You should see the daemons running
     rpki      7184  4.0  2.2 220140 45848 ?        S    07:48   0:00 /usr/bin/python /usr/lib/rpki/irdbd --foreground --log-level warning --log-timed-rotating-file /var/log/rpki/irdbd.log 3 56
     rpki      7186  3.7  2.0 206424 42308 ?        S    07:48   0:00 /usr/bin/python /usr/lib/rpki/pubd --foreground --log-level warning --log-timed-rotating-file /var/log/rpki/pubd.log 3 56
     postgres  7193  0.0  0.6 302016 13104 ?        Ss   07:48   0:00 postgres: rpki rpki [local] idle
-    
+
 
 ### Initializing the CA
 
@@ -229,8 +229,8 @@ and the other features offered by readline().
 It makes life easier if I do all this in a sub-directory to keep it all
 together. Also, files are written and read from the current directory,
 often with code running under the uid of rpki.  So I make the directory
-writiable by that uid.
-    
+writable by that uid.
+
     # mkdir CA-data
     # chown rpki CA-data
     # cd CA-data
@@ -238,7 +238,7 @@ writiable by that uid.
 rpkic has the concept of the current identity.  Initially, it starts
 with the identity from the handle in `/etc/rpki.conf`, RGnetCA in this
 example
-    
+
     # rpkic
     rpkic>
 
@@ -251,12 +251,12 @@ the moment the identity should be the same as the `handle` in /etc/rpki.conf.
     This is the "identity" file you will need to send to your parent
 
 For testing, copy the identity to the publication point.
-    
+
     # rsync RGnet.identity.xml /usr/share/rpki/publication
 
 As the publication point now has data, it is recommended that you test it from
 a remote system
-    
+
     % rsync rsync://ca.rg.net/rpki/RGnet.identity.xml
     -rw-r--r--        1175 2016/04/24 16:53:53 RGnet.identity.xml
 
@@ -295,10 +295,10 @@ next section.
 We need to establish the BPKI relationship with our parent CA. In this
 example, that was RIPE
 
-### The Cild/Parent Identity Handshake
+### The Child/Parent Identity Handshake
 
 In this example, the CA was to be a child of RIPE's CA, so we needed to
-get the indentity of RIPE as a parent.  
+get the identity of RIPE as a parent.
 
 I browsed to [RIPE's provisioning
 page](https://my.ripe.net/#/provisioning/non-hosted), uploaded my
@@ -307,20 +307,20 @@ received back issuer-identity-20160513.xml
 
 We use that file to configure our server's view of its parent
 
-    # rpkic configure_parent issuer-identity-20160513.xml 
+    # rpkic configure_parent issuer-identity-20160513.xml
     Parent calls itself '3336711f-25e1-4b5c-9748-e6c58bef82a5', we call it '3336711f-25e1-4b5c-9748-e6c58bef82a5'
     Parent calls us 'f1400649-ab90-4332-b7e3-3da6b7e44cdb'
     Wrote /root/CA-data/RGnet.3336711f-25e1-4b5c-9748-e6c58bef82a5.repository-request.xml
     This is the file to send to the repository operator
 
-### The Publicatin Handshake
+### The Publication Handshake
 
 In this example, our CA needed a repository, and we are assuming that we
 will also host it.  So our CA should send the file received above to the
 server chosen to host its repository.  In this case, that it itself, so
 it configures itself as its publication server.
-    
-    # rpkic configure_publication_client RGnet.3336711f-25e1-4b5c-9748-e6c58bef82a5.repository-request.xml 
+
+    # rpkic configure_publication_client RGnet.3336711f-25e1-4b5c-9748-e6c58bef82a5.repository-request.xml
     This might be an offer, checking
     We don't host this client's parent, so we didn't make an offer
     Don't know where else to nest this client, so defaulting to top-level
@@ -329,7 +329,7 @@ it configures itself as its publication server.
     Send this file back to the publication client you just configured
 
 Then we configure our repository using the response from above
-    
+
     # rpkic configure_repository RGnet.repository-response.xml
     Repository calls us 'RGnet'
     No explicit parent_handle given, guessing parent 3336711f-25e1-4b5c-9748-e6c58bef82a5
@@ -337,13 +337,13 @@ Then we configure our repository using the response from above
 ### Confirm We Are Publishing
 
 You can see if it is publishing, maybe using a bit of coercion
-    
+
     # rpkic force_publication
     # ls -l /usr/share/rpki/publication
     total 8
     drwxr-xr-x 2 rpki rpki 4096 May 14 07:39 RGnet/
     -rw-r--r-- 1 root root 1175 May 14 07:10 RGnet.identity.xml
-    
+
 If the publication sub-directory is not there, go work on something else for a
 while and come back.
 
@@ -351,12 +351,12 @@ while and come back.
 
 One simple test is to try the GUI. But first you need to set up the GUI
 superuser password. [ insert lecture on strong passwords ]
-    
+
     # rpki-manage createsuperuser
     Username (leave blank to use 'rpki'): RGnet
     Email address: randy@psg.com
-    Password: 
-    Password (again): 
+    Password:
+    Password (again):
     Superuser created successfully.
 
 and write it down somewhere safe.
@@ -373,7 +373,7 @@ not certify, etc. you will want to create a root CA.
 ### Configure a Root
 
 First create an internal root CA
-    
+
     # rpkic configure_root
     Generating root for resources ASN: 0-4294967295, V4: 0.0.0.0/0, V6: ::/0
     Wrote /root/CA-stuff/altCA.altCA.repository-request.xml
@@ -384,12 +384,12 @@ setup (same as it did before, difference is just the implementation).
 
 `configure_root` can take an optional --resources argument which configures the
 set of resources for the root to hold. As you can see, by default it's
-everything (0-4294967295,0.0.0.0/8,::/0).
+everything (0-4294967295,0.0.0.0/0,::/0).
 
 ### Extract the Root Certificate and TAL
 
 There are two new commands to extract root cert and TAL:
-    
+
     # rpkic extract_root_certificate
     # rpkic extract_root_tal
 

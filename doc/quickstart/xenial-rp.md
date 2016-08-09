@@ -8,22 +8,22 @@ minutes.
 I built the following:
 
   * 32GB of hard disk, enough to leave headroom unless you plan a LOT of
-    certificates, as in thousands;  
-  * 1GB or RAM, as it still is a bit of a RAM hog; and 
-  * One CPU should be enough to start. 
+    certificates, as in thousands;
+  * 1GB or RAM, as it still is a bit of a RAM hog; and
+  * One CPU should be enough to start.
   * The server must not have an AAAA DNS RR unless it has working IPv6
-    connectivity.  
+    connectivity.
 
 ## Ingredients
 
 You can start with the following:
 
   * [16.04 Ubuntu Xenial LTS 64-bit server](http://releases.ubuntu.com/16.04/ubuntu-16.04-server-amd64.iso)
-  * I do a fairly basic install, OpenSSH, basic utilities, and grub 
-  * apt update and apt dist-upgrade of course 
+  * I do a fairly basic install, OpenSSH, basic utilities, and grub
+  * apt update and apt dist-upgrade of course
   * I install automatic updates, emacs-nox, ntp, ... with ansible. Note
     that ansible requires python2 and xenial installs python3. So I had to
-    install python2.7 
+    install python2.7
 
 I am lazy and log in as root as pretty much everything I do is going to
 require being root. If you like sudo, then just prefix a lot with it.
@@ -35,19 +35,19 @@ machine.
 
 Add the GPG public key for this repository (optional, but APT will whine
 unless you do this):
-    
+
     # wget -q -O /etc/apt/trusted.gpg.d/rpki.asc   https://download.rpki.net/APTng/apt-gpg-key.asc
-    
+
 Configure APT to use this repository (for Ubuntu Xenial):
 
     # wget -q -O /etc/apt/sources.list.d/rpki.list https://download.rpki.net/APTng/rpki.xenial.list
-    
+
 Update available packages:
-    
+
     # apt update
 
 Install the software:
-    
+
     # apt install rpki-rp
 
 ## Minimal Configuration
@@ -70,7 +70,7 @@ place.
 The rcynic web page is likely not yet populated because the cron job to
 populate is generated for a socially polite cache which fetches once an
 hour.
-    
+
     # crontab -l -u rpki
     MAILTO=root
     42 * * * *      exec /usr/bin/rcynic-cron
@@ -98,9 +98,9 @@ pre [RFC 6810](http://www.rfc-editor.org/rfc/rfc6810.txt).
     EOF
 
 If you have to change it, remember to
-    
+
     # systemctl restart xinetd
-    
+
 The configuration for rcynic is in `/etc/rpki.conf`. Note that it says
 to use the trust anchors in the directory `/etc/rpki/trust-anchors`. You
 may want to change the set of trust anchors if you have unusual

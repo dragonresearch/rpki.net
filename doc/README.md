@@ -4,7 +4,8 @@ Documentation is currently undergoing revision, albeit in fits and starts.
 
 ## Quick Start Guides
 
-Coming soon.
+Quick Start guides for Relying Party and CA on Ubuntu Xenial are
+[here](doc/quickstart)
 
 ## (Old) User's Manual
 

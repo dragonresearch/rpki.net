@@ -25,6 +25,8 @@ GPG-signed.
 
 ## Binary packages
 
+QuickStart guides for RP and CA on Ubuntu Xenial are [here](doc/quickstart)
+
 Binary packages for 
 [Ubuntu Xenial](https://download.rpki.net/APTng/ubuntu/)
 and

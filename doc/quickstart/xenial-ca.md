@@ -125,7 +125,7 @@ requirements.
 
 `/etc/rpki.conf` is the core configuration file for the CA. You need to
 make very minimal changes. If you want an explanation for all the
-options, go [here](<https://github.com/dragonresearch/rpki.net/blob/master/doc/12.RPKI.CA.Configuration.md.)
+options, go [here](</doc/manual/12.RPKI.CA.Configuration.md.)
 Get coffee first.
 
 `handle` is generated as `ca_rg_net` or whatever. You may want to change it to

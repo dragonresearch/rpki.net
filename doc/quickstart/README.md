@@ -7,6 +7,9 @@ More to come.
 
 ## Ubuntu Xenial 16.04 RPKI Relying Party Cache Install
 
+Do NOT try this on Ubuntu 14.04 or other versions of Ubuntu.  We do
+builds for 16.04 only.
+
 Given a running Ubuntu 16.04 xenial server, installing Relying Party
 software should take ten minutes.
 

@@ -3,6 +3,9 @@
 Given a running Ubuntu 16.04 xenial server, this should take ten
 minutes.
 
+Do NOT try this on 14.04 or other versions of Ubuntu.  We do builds for
+16.04 only.
+
 ## System Requirements
 
 I built the following:

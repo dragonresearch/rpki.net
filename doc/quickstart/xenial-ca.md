@@ -1,5 +1,8 @@
 # QuickStart a DRLng Certificate Authority on Ubuntu Xenial
 
+Do NOT try this on 14.04 or other versions of Ubuntu.  We do builds for
+16.04 only.
+
 I wanted to build a DRLng (rrdp, integrated root CA, seriously reworked
 and meaner and leaner) Certificate Authority.
 

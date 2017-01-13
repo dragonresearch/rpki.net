@@ -104,7 +104,9 @@ class Validation_Status(object):
         self.uri = elt.text.strip()
         self.timestamp = elt.get("timestamp")
         self.generation = elt.get("generation")
-        self.hostname = urlparse.urlparse(self.uri).hostname or "[None]"
+        u = urlparse.urlparse(self.uri)
+        self.hostname = u.hostname or (u.scheme == "file" and u.path) or "[None]"
+        self.basename = os.path.basename(self.hostname)
         self.fn2 = os.path.splitext(self.uri)[1] or None if self.generation else None
         self.label = label_map[elt.get("status")]
 
@@ -175,6 +177,7 @@ class Host(Problem_Mixin):
 
     def __init__(self, hostname, timestamp):
         self.hostname = hostname
+        self.basename = os.path.basename(hostname)
         self.timestamp = timestamp
         self.elapsed = 0
         self.connections = 0
@@ -295,7 +298,7 @@ class Host(Problem_Mixin):
             sys.exit("Failure running %s: %s" % (args.rrdtool_binary, e))
 
     def rrd_update(self):
-        filename = os.path.join(args.output_directory, self.hostname) + ".rrd"
+        filename = os.path.join(args.output_directory, self.basename) + ".rrd"
         if not os.path.exists(filename):
             cmd = ["create", filename, "--start", self.timestamp - 1, "--step", "3600"]
             cmd.extend(self.field_ds_specifiers())
@@ -306,7 +309,7 @@ class Host(Problem_Mixin):
 
     def rrd_graph(self, html):
         # pylint: disable=W0622
-        filebase = os.path.join(args.output_directory, self.hostname)
+        filebase = os.path.join(args.output_directory, self.basename)
         formats = [format for format in ("png", "svg", "eps")
                    if getattr(args, format + "_width") and getattr(args, format + "_height")]
         for period, start in self.graph_periods:
@@ -321,17 +324,17 @@ class Host(Problem_Mixin):
                 cmds.extend(self.field_defs(filebase))
                 cmds.extend(self.graph_cmds)
                 self.rrd_run(cmds)
-            img = Element("img", src = "%s_%s.png" % (self.hostname, period),
+            img = Element("img", src = "%s_%s.png" % (self.basename, period),
                           width  = str(args.png_width),
                           height = str(args.png_height))
             if self.graph is None:
                 self.graph = copy.copy(img)
             html.BodyElement("h2").text = "%s over last %s" % (self.hostname, period)
-            html.BodyElement("a", href = "%s_%s_svg.html" % (self.hostname, period)).append(img)
+            html.BodyElement("a", href = "%s_%s_svg.html" % (self.basename, period)).append(img)
             html.BodyElement("br")
             svg_html = HTML("%s over last %s" % (self.hostname, period),
-                            "%s_%s_svg" % (self.hostname, period))
-            svg_html.BodyElement("img", src = "%s_%s.svg" % (self.hostname, period))
+                            "%s_%s_svg" % (self.basename, period))
+            svg_html.BodyElement("img", src = "%s_%s.svg" % (self.basename, period))
             svg_html.close()
 
 
@@ -479,7 +482,7 @@ class HTML(object):
 
     def __init__(self, title, filebase):
 
-        self.filename = os.path.join(args.output_directory, filebase + ".html")
+        self.filename = os.path.join(args.output_directory, os.path.basename(filebase) + ".html")
 
         self.html = Element("html")
         self.html.append(Comment(" Generators:\n" +
@@ -504,7 +507,7 @@ class HTML(object):
         SubElement(li, "span").text = "Repositories"
         ul = SubElement(li, "ul", style = "width: %sem" % hostwidth)
         for hostname in session.hostnames:
-            SubElement(SubElement(ul, "li"), "a", href = "%s.html" % hostname).text = hostname
+            SubElement(SubElement(ul, "li"), "a", href = "%s.html" % os.path.basename(hostname)).text = hostname
         SubElement(SubElement(toc, "li"), "a", href = "problems.html").text = "Problems"
         li = SubElement(toc, "li")
         SubElement(li, "span").text = "All Details"
@@ -636,7 +639,7 @@ def main():
         html.counter_table(session.hosts[hostname].get_counter, session.hosts[hostname].get_total)
         if not args.hide_graphs:
             html.BodyElement("br")
-            html.BodyElement("a", href = "%s.html" % hostname).append(session.hosts[hostname].graph)
+            html.BodyElement("a", href = "%s.html" % os.path.basename(hostname)).append(session.hosts[hostname].graph)
     html.close()
 
     html = HTML("Problems", "problems")

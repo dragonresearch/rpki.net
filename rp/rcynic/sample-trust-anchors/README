@@ -1,5 +1,3 @@
-$Id$
-
 These are SAMPLE trust anchors for testing rcynic.  Any resemblance
 between these files and real trust anchors living, dead, or wandering
 the night in ghostly torment is purely coincidental.
@@ -17,7 +15,7 @@ See the rcynic documentation for further details.
 
 afrinic.tal			 AfriNIC
 apnic.tal			 APNIC
-arin.tal			 ARIN testbed
+arin.tal			 ARIN
 bbn-testbed.tal.disabled	 Only useful for certain tests
 lacnic.tal			 LACNIC
 ripe-ncc-root.tal		 RIPE NCC

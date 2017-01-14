@@ -33,7 +33,6 @@
 /openssl/tests/test.key
 /rp/config/rpki.rp.conf.sample
 /rp/config/rpki.rp.xml
-/rp/rcynic/sample-trust-anchors/arin.tal
 /rp/rpki-rtr/*.ax
 /rp/rpki-rtr/*.ax.v[0-9]
 /rp/rpki-rtr/*.ix.*

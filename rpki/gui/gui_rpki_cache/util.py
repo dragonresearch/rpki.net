@@ -88,21 +88,21 @@ def process_certificate(auth, obj):
 	cert.save()
 
     if asns == 'inherit':
-        cert.asns.add(*[issuer.asns.all()])
+        cert.asns.add(*issuer.asns.all())
     elif asns:
 	for asmin, asmax in asns:
 	    asr, _ = models.ASRange.objects.get_or_create(min=asmin, max=asmax)
 	    cert.asns.add(asr)
 
     if v4 == 'inherit':
-        cert.addresses.add(*[issuer.addresses.all()])
+        cert.addresses.add(*issuer.addresses.all())
     elif v4:
 	for v4min, v4max in v4:
 	    pfx, _ = models.AddressRange.objects.get_or_create(prefix_min=v4min, prefix_max=v4max)
 	    cert.addresses.add(pfx)
 
     if v6 == 'inherit':
-        cert.addresses_v6.add(*[issuer.addresses_v6.all()])
+        cert.addresses_v6.add(*issuer.addresses_v6.all())
     elif v6:
 	for v6min, v6max in v6:
 	    pfx, _ = models.AddressRangeV6.objects.get_or_create(prefix_min=v6min, prefix_max=v6max)

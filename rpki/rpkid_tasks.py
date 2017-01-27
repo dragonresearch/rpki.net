@@ -431,7 +431,7 @@ class UpdateROAsTask(AbstractTask):
             roa = roas.pop(0)
             try:
                 roa.update(publisher = publisher)
-                ca_details.add(roa.ca_detail)
+                ca_details.add(roa.ca_detail.pk)
             except rpki.exceptions.NoCoveringCertForROA:
                 logger.warning("%r: No covering certificate for %r, skipping", self, roa)
             except:
@@ -440,13 +440,13 @@ class UpdateROAsTask(AbstractTask):
         if not postponing:
             for roa in orphans:
                 try:
-                    ca_details.add(roa.ca_detail)
+                    ca_details.add(roa.ca_detail.pk)
                     roa.revoke(publisher = publisher)
                 except:
                     logger.exception("%r: Could not revoke %r", self, roa)
 
         if not publisher.empty():
-            for ca_detail in ca_details:
+            for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(pk__in = ca_details):
                 logger.debug("%r: Generating new CRL and manifest for %r", self, ca_detail)
                 ca_detail.generate_crl_and_manifest(publisher = publisher)
             yield publisher.call_pubd()

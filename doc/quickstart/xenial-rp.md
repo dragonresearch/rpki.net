@@ -39,7 +39,7 @@ machine.
 Add the GPG public key for this repository (optional, but APT will whine
 unless you do this):
 
-    # wget -q -O /etc/apt/trusted.gpg.d/rpki.asc   https://download.rpki.net/APTng/apt-gpg-key.asc
+    # wget -q -O - https://download.rpki.net/APTng/apt-gpg-key.asc | sudo apt-key add -
 
 Configure APT to use this repository (for Ubuntu Xenial):
 

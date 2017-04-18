@@ -265,6 +265,8 @@ a remote system
 
 ## An Overview Using the rpkic CLI in setup phase
 
+You need to do this even for a root instance.
+
 The general structure of the setup phase in rpkic is described here.
 The following assumes that we have already installed the software and
 started the servers.  We will walk through a specific example in the

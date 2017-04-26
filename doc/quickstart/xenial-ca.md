@@ -140,6 +140,10 @@ The `handle` in rpkic.conf is a historical relic (dating back to the
 `myrpki.xml` interface, circa 2008). It's become just the default for `-i` /
 `--identity` / `select_identity` and may eventually go away completely.
 
+As `handle` will be used as the default identity when running rpkic
+below, either set it to what you want as your identity or plan to be
+specific about identity when using rpkic.
+
 If you may offer publication services to other CAs, you will want to put the
 contact email in `pubd_contact_info`.
 

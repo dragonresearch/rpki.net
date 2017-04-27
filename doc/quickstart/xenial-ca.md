@@ -420,3 +420,57 @@ root certificate is how the RP finds RRDP, not the other way around), so
 you'll need to put a copy of the root certificate in the location named by the
 HTTPS URI in the TAL (/usr/share/rpki/rrdp-publication/ in the default Ubuntu
 setup).
+
+## Checking the Root Certificate
+
+In general there isn't a root.cer file with the new code: the root
+RPKI certificate is just another RPKI CA certificate (self-signed, but
+otherwise not significantly different), named with a g(SKI) filename
+like all the other RPKI objects.
+
+What matters is:
+
+ * That the URI in the TAL match the filename of the root certificate.
+   How one does that is somewhat arbitrary, eg, one play games with
+   Apache aliases given sufficient reason, but the simple approach is
+   just to drop the root certificate into the same trees already being
+   served by rsyncd and Apache.  The extract_root_tal command makes
+   certain assumptions about where you're going to do that, feel free
+   to edit the URI in the TAL if necessary to make this work.
+
+ * That the public key in the TAL match the public key in the
+   self-signed RPKI root certificate.  This is the test that appears to
+   be failing according to the report above.  This usually means that
+   one is not using the TAL one thought one was, or that the URI in
+   that TAL is pointing to the wrong root certificate, or something on
+   that order.
+
+If you have the self-signed certificate in hand, it's not hard to
+extract the public key from it using the OpenSSL command line tool,
+eg:
+
+```
+$ openssl x509 -inform DER -in foo.cer -noout -pubkey
+```
+
+will send the public key to stdout in PEM format, which is enough for
+a quick visual check on whether the public key matches the one in the
+TAL.  If you want to do a full binary comparison of the public key in
+a certificate with one in a TAL, you'll need a few more commands to
+whack everything into the right format, something like:
+
+```
+$ openssl x509 -inform DER -in foo.cer -noout -pubkey | openssl pkey -pubin -outform DER -out foo.cer.key
+
+$ sed -n '/^$/,$p'             foo.tal                | openssl enc -d -a                -out foo.tal.key 
+
+$ diff -qs foo.cer.key foo.tal.key
+```
+
+That's essentially what the relying party code does when checking the
+key in a TAL, although of course it implements the checks directly.
+
+There are other tools which will let you examine the ASN.1 if you have
+some reason to do so, but in this case it's not all that interesting,
+any valid RPKI root key will have identical values for all but one
+field of the ASN.1, and that field is a 2048-bit hexadecimal integer.

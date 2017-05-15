@@ -474,3 +474,17 @@ There are other tools which will let you examine the ASN.1 if you have
 some reason to do so, but in this case it's not all that interesting,
 any valid RPKI root key will have identical values for all but one
 field of the ASN.1, and that field is a 2048-bit hexadecimal integer.
+
+## Renewing the Root Certificate
+
+By default, the root certificate has a one year expiration.  The
+software does not refresh the copy on disk automatically.  Therefore it
+would be good to put in a cron job something such as the following:
+
+```
+$ rpkic extract_root_certificate --output_file /usr/share/rpki/tal/root.cer
+```
+
+Note that the directory and filename will likely need to be adjusted for
+your configuration.  What does the TAL you publish say the filename and
+location are?

@@ -31,16 +31,11 @@ You should only need to perform these steps once for any particular machine.
 
 Add the GPG public key for this repository (optional, but APT will whine
 unless you do this):
-
-    
     
     # wget -q -O - http://download.rpki.net/APTng/apt-gpg-key.asc | sudo apt-key add -
     
-
 Configure APT to use this repository (for Ubuntu Trusty systems):
 
-    
-    
     # wget -q -O /etc/apt/sources.list.d/rpki.list http://download.rpki.net/APTng/rpki.trusty.list
     
 
@@ -446,8 +441,7 @@ setup).
 
    [3]: http://www.rfc-editor.org/rfc/rfc6810.txt
 
-   [4]:
-https://trac.rpki.net/wiki/doc/RPKI/RRDPtestbed#UsingtherpkicCLIinsetupphase
+   [4]: https://trac.rpki.net/wiki/doc/RPKI/RRDPtestbed#UsingtherpkicCLIinsetupphase
 
    [5]: https://my.ripe.net/#/provisioning/non-hosted
 

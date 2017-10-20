@@ -39,11 +39,11 @@ machine.
 Add the GPG public key for this repository (optional, but APT will whine
 unless you do this):
 
-   # wget -q -O /etc/apt/trusted.gpg.d/rpki.gpg https://download.rpki.net/APTng/apt-gpg-key.gpg
+    # wget -q -O /etc/apt/trusted.gpg.d/rpki.gpg https://download.rpki.net/APTng/apt-gpg-key.gpg
 
 Configure APT to use this repository (for Ubuntu Xenial):
 
-   # wget -q -O /etc/apt/sources.list.d/rpki.list https://download.rpki.net/APTng/rpki.xenial.list
+    # wget -q -O /etc/apt/sources.list.d/rpki.list https://download.rpki.net/APTng/rpki.xenial.list
 
 Update available packages:
 

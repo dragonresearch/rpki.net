@@ -915,10 +915,9 @@ class Fetcher(object):
         # "you don't need to retrieve this" result comes back,
         # probably a benign exception we need to catch.  Supporting
         # this means adding another null-able timestamp field to the
-        # RRDPSnapshot model (which probably should be named the
-        # RRDPZone model instead), and storing a datetime there.
-        # Would also need to pull timestamp from the Last-Modified
-        # header in the response object.
+        # RRDPZone model, and storing a datetime there.  Would also
+        # need to pull timestamp from the Last-Modified header in the
+        # response object.
 
         try:
             ok = False
@@ -1041,7 +1040,7 @@ class Fetcher(object):
                 yield tornado.gen.moment
                 try:
                     existing_objs.append(RPKIObject.objects.values_list("pk", flat = True).get(der = new_objs[i].der))
-                    logger.debug("Object existed in SQL but, apparently, not in prior copy of snapshot: uri %s sha256 %s",
+                    logger.debug("Object existed in SQL but, apparently, not in prior copy of zone: uri %s sha256 %s",
                                  new_objs[i].uri, new_objs[i].sha256)
                 except RPKIObject.DoesNotExist:
                     i += 1
@@ -1072,36 +1071,36 @@ class Fetcher(object):
             session_id = notification.get("session_id")
             serial = long(notification.get("serial"))
 
-            snapshot = RRDPSnapshot.objects.filter(
+            zone = RRDPZone.objects.filter(
                 session_id = session_id).order_by("-retrieved__started").first()
 
-            logger.debug("RRDP notification for %s session_id %s serial %s current snapshot %r",
-                         self.uri, session_id, serial, snapshot)
+            logger.debug("RRDP notification for %s session_id %s serial %s current zone %r",
+                         self.uri, session_id, serial, zone)
 
-            if snapshot is not None and snapshot.serial == serial:
+            if zone is not None and zone.serial == serial:
                 logger.debug("RRDP data for %s is up-to-date, nothing to do", self.uri)
                 return
             
             deltas = dict((long(delta.get("serial")), (delta.get("uri"), delta.get("hash")))
                           for delta in notification.iterchildren(tag_delta))
 
-            if snapshot is None or snapshot.serial + 1 not in deltas:
+            if zone is None or zone.serial + 1 not in deltas:
 
                 existing_rpkiobject_map = dict()
 
-                if snapshot is not None:
-                    logger.debug("RRDP %s no deltas available for serial %s", self.uri, snapshot.serial)
-                    existing_rpkiobject_map.update(snapshot.rpkiobject_set.values_list("sha256", "pk"))
+                if zone is not None:
+                    logger.debug("RRDP %s no deltas available for serial %s", self.uri, zone.serial)
+                    existing_rpkiobject_map.update(zone.rpkiobject_set.values_list("sha256", "pk"))
 
                 x = notification.find(tag_snapshot)
 
                 url, hash = x.get("uri"), x.get("hash")
 
-                logger.debug("RRDP %s loading from snapshot %s serial %s", self.uri, url, serial)
+                logger.debug("RRDP %s loading from zone %s serial %s", self.uri, url, serial)
 
                 retrieval, response, xml_file = yield self._rrdp_fetch_data_file(url, hash)
 
-                snapshot = RRDPSnapshot.objects.create(session_id = session_id, serial = serial)
+                zone = RRDPZone.objects.create(session_id = session_id, serial = serial)
 
                 # Value of "chunk" here may need to be configurable.  Larger numbers batch more objects in
                 # a single bulk addition, which is faster ... unless one or more of them isn't really new, in
@@ -1122,7 +1121,7 @@ class Fetcher(object):
                         if root is None or root.tag != tag_snapshot \
                                         or root.get("version") != "1" \
                                         or any(a not in ("version", "session_id", "serial") for a in root.attrib):
-                            raise RRDP_ParseFailure("{} doesn't look like an RRDP snapshot file".format(url))
+                            raise RRDP_ParseFailure("{} doesn't look like an RRDP zone file".format(url))
                         if root.get("session_id") != session_id:
                             raise RRDP_ParseFailure("Expected RRDP session_id {} for {}, got {}".format(
                                 session_id, url, root.get("session_id")))
@@ -1160,25 +1159,25 @@ class Fetcher(object):
                 if len(new_rpkiobjects) > 0:
                     yield self._rrdp_bulk_create(new_rpkiobjects, existing_rpkiobjects)
 
-                RPKIObject.snapshot.through.objects.bulk_create([
-                    RPKIObject.snapshot.through(rrdpsnapshot_id = snapshot.id, rpkiobject_id = i)
+                RPKIObject.zone.through.objects.bulk_create([
+                    RPKIObject.zone.through(rrdpzone_id = zone.id, rpkiobject_id = i)
                     for i in retrieval.rpkiobject_set.values_list("pk", flat = True)])
 
-                RPKIObject.snapshot.through.objects.bulk_create([
-                    RPKIObject.snapshot.through(rrdpsnapshot_id = snapshot.id, rpkiobject_id = i)
+                RPKIObject.zone.through.objects.bulk_create([
+                    RPKIObject.zone.through(rrdpzone_id = zone.id, rpkiobject_id = i)
                     for i in existing_rpkiobjects])
 
-                snapshot.retrieved = retrieval
-                snapshot.save()
+                zone.updated = rpki.sundial.datetime.now()
+                zone.save()
 
                 xml_file.close()
 
             else:
                 logger.debug("RRDP %s %s deltas (%s--%s)", self.uri, 
-                             (serial - snapshot.serial), snapshot.serial, serial)
+                             (serial - zone.serial), zone.serial, serial)
 
                 deltas = [(serial, deltas[serial][0], deltas[serial][1])
-                          for serial in xrange(snapshot.serial + 1, serial + 1)]
+                          for serial in xrange(zone.serial + 1, serial + 1)]
                 futures = []
 
                 while deltas or futures:
@@ -1193,9 +1192,10 @@ class Fetcher(object):
                     root = None
 
                     with transaction.atomic():
-                        snapshot.serial += 1
-                        snapshot.save()
-                        logger.debug("RRDP %s serial %s loading", self.uri, snapshot.serial)
+                        zone.serial += 1
+                        zone.updated = None
+                        zone.save()
+                        logger.debug("RRDP %s serial %s loading", self.uri, zone.serial)
 
                         for event, node in iterparse(xml_file):
                             if node is root:
@@ -1210,9 +1210,9 @@ class Fetcher(object):
                                 if root.get("session_id") != session_id:
                                     raise RRDP_ParseFailure("Expected RRDP session_id {} for {}, got {}".format(
                                         session_id, url, root.get("session_id")))
-                                if long(root.get("serial")) != snapshot.serial:
+                                if long(root.get("serial")) != zone.serial:
                                     raise RRDP_ParseFailure("Expected RRDP serial {} for {}, got {}".format(
-                                        snapshot.serial, url, root.get("serial")))
+                                        zone.serial, url, root.get("serial")))
 
                             hash = node.get("hash")
 
@@ -1222,7 +1222,7 @@ class Fetcher(object):
                                 raise RRDP_ParseFailure("{} doesn't look like an RRDP delta file".format(url))
 
                             if node.tag == tag_withdraw or node.get("hash") is not None:
-                                snapshot.rpkiobject_set.remove(snapshot.rpkiobject_set.get(sha256 = node.get("hash").lower()))
+                                zone.rpkiobject_set.remove(zone.rpkiobject_set.get(sha256 = node.get("hash").lower()))
 
                             if node.tag == tag_publish:
                                 uri = node.get("uri")
@@ -1230,7 +1230,7 @@ class Fetcher(object):
                                 if cls is None:
                                     raise RRDP_ParseFailure("Unexpected URI %s" % uri)
                                 obj, created = cls.store_if_new(node.text.decode("base64"), uri, retrieval)
-                                obj.snapshot.add(snapshot)
+                                obj.zone.add(zone)
 
                             node.clear()
                             while node.getprevious() is not None:
@@ -1239,6 +1239,8 @@ class Fetcher(object):
                             #yield tornado.gen.moment
 
                         xml_file.close()
+                        zone.updated = rpki.sundial.datetime.now()
+                        zone.save()
 
                 logger.debug("RRDP %s done processing deltas", self.uri)
 
@@ -1346,18 +1348,18 @@ def final_cleanup():
     from django.db import transaction, models
 
     def report(when):
-        logger.debug("Database %s cleanup: %s Authenticated %s RRDPSnapshot %s RPKIObject %s Retrieval", when,
-                     Authenticated.objects.all().count(), RRDPSnapshot.objects.all().count(),
+        logger.debug("Database %s cleanup: %s Authenticated %s RRDPZone %s RPKIObject %s Retrieval", when,
+                     Authenticated.objects.all().count(), RRDPZone.objects.all().count(),
                      RPKIObject.objects.all().count(), Retrieval.objects.all().count())
 
     report("before")
 
     with transaction.atomic():
 
-        #logger.debug("Flushing incomplete RRDP snapshots")
+        #logger.debug("Flushing incomplete RRDP zones")
 
-        q = RRDPSnapshot.objects
-        q = q.filter(retrieved__isnull = True)
+        q = RRDPZone.objects
+        q = q.filter(updated__isnull = True)
         q.delete()
 
         #logger.debug("Flushing old authenticated sets")
@@ -1366,32 +1368,31 @@ def final_cleanup():
         q = q.exclude(id = authenticated.id)
         q.delete()
 
-        #logger.debug("Flushing RRDP snapshots which don't contain anything in the (remaining) authenticated set")
+        #logger.debug("Flushing RRDP zones which don't contain anything in the (remaining) authenticated set")
 
         q = RPKIObject.objects
         q = q.filter(authenticated = authenticated.id)
-        q = q.exclude(snapshot = None)
-        q = q.order_by("snapshot__id")
-        q = q.values_list("snapshot__id", flat = True)
+        q = q.exclude(zone = None)
+        q = q.order_by("zone__id")
+        q = q.values_list("zone__id", flat = True)
         q = q.distinct()
-        q = RRDPSnapshot.objects.exclude(id__in = q)
+        q = RRDPZone.objects.exclude(id__in = q)
         q.delete()
 
-        #logger.debug("Flushing RPKI objects which are in neither current authenticated set nor current RRDP snapshot")
+        #logger.debug("Flushing RPKI objects which are in neither current authenticated set nor current RRDP zone")
 
         q = RPKIObject.objects
         q = q.filter(authenticated = None)      # was: q = q.exclude(authenticated = authenticated.id)
-        q = q.filter(snapshot = None)
+        q = q.filter(zone = None)
         q.delete()
 
-        #logger.debug("Flushing retrieval objects which are no longer related to any RPKI objects or RRDP snapshot")
+        #logger.debug("Flushing retrieval objects which are no longer related to any RPKI objects")
 
         q = RPKIObject.objects
         q = q.order_by("retrieved__id")
         q = q.values_list("retrieved__id", flat = True)
         q = q.distinct()
         q = Retrieval.objects.exclude(id__in = q)
-        q = q.filter(rrdpsnapshot = None)
         q.delete()
 
     report("after")
@@ -1482,13 +1483,12 @@ def main():
     import rpki.rcynicdb
     global Retrieval
     global Authenticated
-    global RRDPSnapshot
+    global RRDPZone
     global RPKIObject
     Retrieval     = rpki.rcynicdb.models.Retrieval
     Authenticated = rpki.rcynicdb.models.Authenticated
-    RRDPSnapshot  = rpki.rcynicdb.models.RRDPSnapshot
+    RRDPZone      = rpki.rcynicdb.models.RRDPZone
     RPKIObject    = rpki.rcynicdb.models.RPKIObject
-
 
     global authenticated
     authenticated = Authenticated.objects.create(started  = rpki.sundial.datetime.now())

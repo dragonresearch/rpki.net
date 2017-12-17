@@ -43,18 +43,18 @@ class Authenticated(models.Model):
         except:
             return "<Authenticated: {}>".format(id(self))
 
-# One instance of an RRDP snapshot.
+# Collection of RPKI objects retrieved via RRDP.
 
-class RRDPSnapshot(models.Model):
+class RRDPZone(models.Model):
     session_id = models.UUIDField()
     serial     = models.BigIntegerField()
-    retrieved  = models.OneToOneField(Retrieval, null = True)
+    updated    = models.DateTimeField(null = True)
 
     def __repr__(self):
         try:
-            return "<RRDPSnapshot: serial {0.serial} session_id {0.session_id} retrieved {0.retrieved!r}>".format(self)
+            return "<RRDPZone: serial {0.serial} session_id {0.session_id} updated {0.updated!r}>".format(self)
         except:
-            return "<RRDPSnapshot: {}>".format(id(self))
+            return "<RRDPZone: {}>".format(id(self))
 
 
 # RPKI objects.
@@ -87,7 +87,7 @@ class RPKIObject(models.Model):
     sha256        = models.SlugField(max_length = 64, unique = True) # hex SHA-256
     retrieved     = models.ForeignKey(Retrieval)
     authenticated = models.ManyToManyField(Authenticated)
-    snapshot      = models.ManyToManyField(RRDPSnapshot)
+    zone          = models.ManyToManyField(RRDPZone)
 
     def __repr__(self):
         try:

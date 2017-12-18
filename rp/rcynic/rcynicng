@@ -1071,8 +1071,10 @@ class Fetcher(object):
             session_id = notification.get("session_id")
             serial = long(notification.get("serial"))
 
-            zone = RRDPZone.objects.filter(
-                session_id = session_id).order_by("-retrieved__started").first()
+            try:
+                zone = RRDPZone.objects.get(session_id = session_id)
+            except RRDPZone.DoesNotExist:
+                zone = None
 
             logger.debug("RRDP notification for %s session_id %s serial %s current zone %r",
                          self.uri, session_id, serial, zone)

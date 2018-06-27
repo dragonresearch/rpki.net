@@ -27,13 +27,13 @@ GPG-signed.
 
 QuickStart guides for RP and CA on Ubuntu Xenial are [here](doc/quickstart/README.md)
 
-Setup on Debian Jessie is similar, other than the APT URLs (below).
+Setup on other Ubuntu and Debian releases is similar, other than the APT URLs (below).
 
-Binary packages for
-[Ubuntu Xenial](https://download.rpki.net/APTng/ubuntu/)
+Binary packages for several
+[Ubuntu](https://download.rpki.net/APTng/ubuntu/)
 and
-[Debian Jessie](https://download.rpki.net/APTng/debian/)
-are available from https://download.rpki.net/APTng/.
+[Debian](https://download.rpki.net/APTng/debian/)
+releases are available from https://download.rpki.net/APTng/.
 
 The source packaging scripts for FreeBSD are a bit stale, someday
 we'll fix that.

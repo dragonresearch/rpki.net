@@ -2318,8 +2318,8 @@ class ROA(models.Model):
             logger.debug("%r oversized with respect to CA, regenerating", self)
             return self.regenerate(publisher = publisher)
 
-        v4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
-        v6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+        v4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4).to_resource_set()
+        v6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6).to_resource_set()
 
         if ee_resources.v4 != v4 or ee_resources.v6 != v6:
             logger.debug("%r resources do not match EE, regenerating", self)
@@ -2353,8 +2353,8 @@ class ROA(models.Model):
         if self.ipv4 is None and self.ipv6 is None:
             raise rpki.exceptions.EmptyROAPrefixList
 
-        v4 = rpki.resource_set.resource_set_ipv4(self.ipv4)
-        v6 = rpki.resource_set.resource_set_ipv6(self.ipv6)
+        v4 = rpki.resource_set.roa_prefix_set_ipv4(self.ipv4).to_resource_set()
+        v6 = rpki.resource_set.roa_prefix_set_ipv6(self.ipv6).to_resource_set()
 
         # http://stackoverflow.com/questions/26270042/how-do-you-catch-this-exception
         # "Django is amazing when its not terrifying."

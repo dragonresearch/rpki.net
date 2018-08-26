@@ -40,6 +40,8 @@ import rpki.sundial
 import rpki.publication
 import rpki.exceptions
 
+from lxml.etree import (Element, SubElement)
+
 logger = logging.getLogger(__name__)
 
 task_classes = ()
@@ -676,3 +678,70 @@ class CheckFailedPublication(AbstractTask):
 
         except:
             logger.exception("%r: Couldn't run failed publications, skipping", self)
+
+@queue_task
+class ProcessSinglePublicationPoint(AbstractTask):
+    """
+    If a 'single' publication entity-repository pair has been
+    configured, and that entity is the current tenant, then publish
+    all local objects to the remote repository.
+    """
+
+    @tornado.gen.coroutine
+    def main(self):
+        logger.debug("%r: Process single publication point", self)
+
+        entity = self.rpkid.cfg.get("publication_point_single_entity", "")
+        if entity != self.tenant.tenant_handle:
+            logger.debug("%r: No entity configured for single publication point", self)
+            return
+
+        repository_handle = self.rpkid.cfg.get("publication_point_single_repository_handle", "")
+        if not repository_handle:
+            logger.debug("%r: No repository handle configured for single publication point", self)
+            return
+
+        try:
+            publisher = rpki.rpkid.publication_queue(self.rpkid)
+            repository = self.tenant.repositories.get(repository_handle = repository_handle)
+
+            q_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                            type = "query", version = rpki.publication.version)
+            SubElement(q_msg, rpki.publication.tag_list, tag = "list")
+            r_msg = yield repository.call_pubd(self.rpkid, q_msg, length_check= False)
+
+            pubd_objs = dict((r_pdu.get("uri"), r_pdu.get("hash")) for r_pdu in r_msg)
+
+            our_objs = []
+            for ca_detail in rpki.rpkidb.models.CADetail.objects.filter(state = "active").exclude(ca__parent__tenant = self.tenant):
+                our_objs.extend([(ca_detail.crl_uri,      ca_detail.latest_crl),
+                                 (ca_detail.manifest_uri, ca_detail.latest_manifest)])
+                our_objs.extend((c.uri, c.cert)      for c in ca_detail.child_certs.all())
+                our_objs.extend((r.uri, r.roa)       for r in ca_detail.roas.filter(roa__isnull = False))
+                our_objs.extend((g.uri, g.ghostbuster) for g in ca_detail.ghostbusters.all())
+                our_objs.extend((c.uri, c.cert)      for c in ca_detail.ee_certificates.all())
+
+            q_msg = Element(rpki.publication.tag_msg, nsmap = rpki.publication.nsmap,
+                            type = "query", version = rpki.publication.version)
+
+            for uri, obj in our_objs:
+                if uri not in pubd_objs:
+                    logger.info("Resynchronization: adding object %s", uri)
+                    SubElement(q_msg, rpki.publication.tag_publish, uri = uri).text = obj.get_Base64()
+                else:
+                    h = pubd_objs.pop(uri)
+                    if h != rpki.x509.sha256(obj.get_DER()).encode("hex"):
+                        logger.info("Resynchronization: updating object %s", uri)
+                        SubElement(q_msg, rpki.publication.tag_publish,
+                                   uri = uri, hash = h).text = obj.get_Base64()
+                    else:
+                        logger.info("Resynchronization: keeping object %s", uri)
+
+            for uri, h in pubd_objs.iteritems():
+                logger.info("Resynchronization: removing object %s", uri)
+                SubElement(q_msg, rpki.publication.tag_withdraw, uri = uri, hash = h)
+
+            yield repository.call_pubd(self.rpkid, q_msg)
+
+        except:
+            logger.exception("%r: Couldn't process single publication point, skipping", self)

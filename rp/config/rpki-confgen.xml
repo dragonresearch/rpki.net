@@ -670,6 +670,24 @@
       </doc>
     </option>
 
+    <option name  = "publication_point_single_entity"
+            value = "">
+       <doc>
+         When operating a local parent engine under a remote parent
+         that offers publication protocol service, it's not possible
+         by default to have the local parent engine publish to the
+         remote parent on behalf of its child engines.  However, this
+         can be handled by setting up a dummy engine for publication,
+         and having that dummy engine publish all local repository
+         objects to the remote parent's publication point.  If the
+         entity and repository handle configuration settings below are
+         set to non-empty values, then that entity will periodically
+         publish all local objects to the configured repository.
+       </doc>
+    </option>
+    <option name  = "publication_point_single_repository_handle"
+            value = "" />
+
   </section>
 
   <section name = "irdbd">

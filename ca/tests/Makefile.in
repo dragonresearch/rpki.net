@@ -52,37 +52,6 @@ relaxng: up-down-relaxng left-right-relaxng publication-relaxng publication-cont
 
 all-tests:: relaxng
 
-parse-test: left-right-protocol-samples publication-protocol-samples publication-control-protocol-samples
-	${PYTHON} xml-parse-test.py
-
-all-tests:: parse-test
-
-all-tests:: 
-	${PYTHON} smoketest.py smoketest.1.yaml
-
-all-tests::
-	${PYTHON} smoketest.py smoketest.2.yaml
-
-test all-tests::
-	${PYTHON} smoketest.py smoketest.3.yaml
-
-all-tests::
-	${PYTHON} smoketest.py smoketest.4.yaml
-
-all-tests::
-	${PYTHON} smoketest.py smoketest.5.yaml
-
-test all-tests::
-	${PYTHON} smoketest.py smoketest.6.yaml
-
-all-tests::
-	${PYTHON} smoketest.py smoketest.7.yaml
-
-profile: all
-	find smoketest.dir -name '*.prof' -delete
-	${PYTHON} smoketest.py smoketest.2.yaml -p
-	for i in smoketest.dir/*.prof; do ${PYTHON} -c "import pstats;pstats.Stats('$$i').sort_stats('time').print_stats()"; done
-
 # This isn't a full exercise of the yamltest framework, but is
 # probably as good as we can do under make.
 

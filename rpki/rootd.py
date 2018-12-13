@@ -404,8 +404,9 @@ class main(object):
         self.cfg.add_boolean_argument("--foreground", default = False,
                                       help = "do not daemonize")
         self.cfg.add_argument("--pidfile",
-                              default = os.pat.join(rpki.daemonize.default_pid_directory,
-                                                    "rootd.pid"),
+                              default = os.path.join(
+                                  rpki.daemonize.default_pid_directory,
+                                  "rootd.pid"),
                               help = "override default location of pid file")
         self.cfg.add_logging_arguments()
         args = parser.parse_args()

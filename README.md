@@ -1,5 +1,7 @@
 # Dragon Research Labs RPKI Toolkit
 
+![Breathing Dragon](dragonresearch.gif "Breathing Dragon")
+
 This is the "rpki.net" toolkit developed and maintained primarily by
 Dragon Research Labs.  It's had several other names over the years
 ("DRL RPKI toolkit", "ISC RPKI toolkit", etc), but it's the same

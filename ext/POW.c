@@ -1,8 +1,8 @@
 /*
  * This module started out as the core of Peter Shannon's "Python
  * OpenSSL Wrappers" package, an excellent but somewhat dated package
- * which I encountered while looking for some halfway sane way to cram
- * RFC 3779 certificate support code into Python.
+ * which I [Rob Austein] encountered while looking for some halfway
+ * sane way to cram RFC 3779 certificate support code into Python.
  *
  * At this point enough of the code has been added or rewritten that
  * it's unclear (either way) whether this code properly qualifies as a
@@ -11,8 +11,12 @@
  * BSD license, this may not matter very much, but the following
  * attempts to give proper credit to all concerned.
  *
+ * Philip Paeps improved support for OpenSSL 1.1 and Python 3, under
+ * contract for ISOC.
+ *
  ****
  *
+ * Portions copyright (C) 2021  The Internet Society ("ISOC")
  * Copyright (C) 2015--2016  Parsons Government Services ("PARSONS")
  * Portions copyright (C) 2014  Dragon Research Labs ("DRL")
  * Portions copyright (C) 2009--2013  Internet Systems Consortium ("ISC")
@@ -22,10 +26,10 @@
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notices and this permission notice appear in all copies.
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND PARSONS, DRL, ISC, AND ARIN
+ * THE SOFTWARE IS PROVIDED "AS IS" AND ISOC, PARSONS, DRL, ISC, AND ARIN
  * DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN NO EVENT
- * SHALL PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
+ * SHALL ISOC, PARSONS, DRL, ISC, OR ARIN BE LIABLE FOR ANY SPECIAL, DIRECT,
  * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
  * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
  * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
@@ -371,7 +375,7 @@ typedef struct {
 
 typedef struct {
   PyObject_HEAD
-  EVP_MD_CTX digest_ctx;
+  EVP_MD_CTX *digest_ctx;
   int digest_type;
 } digest_object;
 
@@ -669,8 +673,8 @@ x509_object_helper_get_name(X509_NAME *name, int format)
     if ((ne = X509_NAME_get_entry(name, i)) == NULL)
       lose("Couldn't get certificate name");
 
-    if (ne->set < 0 || ne->set < set || ne->set > set + 1)
-      lose("X509_NAME->set value out of expected range");
+    if (X509_NAME_ENTRY_set(ne) < 0 || X509_NAME_ENTRY_set(ne) < set || X509_NAME_ENTRY_set(ne) > set + 1)
+      lose("X509_NAME_ENTRY_set(ne) value out of expected range");
 
     switch (format) {
     case SHORTNAME_FORMAT:
@@ -692,10 +696,10 @@ x509_object_helper_get_name(X509_NAME *name, int format)
       oid = oidbuf;
     }
 
-    if (ne->set > set) {
+    if (X509_NAME_ENTRY_set(ne) > set) {
 
       set++;
-      if ((item = Py_BuildValue("((ss#))", oid, ASN1_STRING_data(X509_NAME_ENTRY_get_data(ne)),
+      if ((item = Py_BuildValue("((ss#))", oid, ASN1_STRING_get0_data(X509_NAME_ENTRY_get_data(ne)),
                                 (Py_ssize_t) ASN1_STRING_length(X509_NAME_ENTRY_get_data(ne)))) == NULL)
         goto error;
       PyTuple_SET_ITEM(result, set, item);
@@ -709,7 +713,7 @@ x509_object_helper_get_name(X509_NAME *name, int format)
       PyTuple_SET_ITEM(result, set, rdn);
       if (rdn == NULL)
         goto error;
-      if ((item = Py_BuildValue("(ss#)", oid, ASN1_STRING_data(X509_NAME_ENTRY_get_data(ne)),
+      if ((item = Py_BuildValue("(ss#)", oid, ASN1_STRING_get0_data(X509_NAME_ENTRY_get_data(ne)),
                                 (Py_ssize_t) ASN1_STRING_length(X509_NAME_ENTRY_get_data(ne)))) == NULL)
         goto error;
       PyTuple_SetItem(rdn, PyTuple_Size(rdn) - 1, item);
@@ -847,7 +851,7 @@ stack_to_tuple_helper_get_crl(void *crl)
  */
 
 static PyObject *
-ASN1_TIME_to_Python(ASN1_TIME *t)
+ASN1_TIME_to_Python(const ASN1_TIME *t)
 {
   ASN1_GENERALIZEDTIME *g = NULL;
   PyObject *result = NULL;
@@ -992,12 +996,12 @@ read_from_file_helper(PyObject *(*object_read_helper)(PyTypeObject *, BIO *),
  * Convert an ASN1_INTEGER into a Python integer or long.
  */
 static PyObject *
-ASN1_INTEGER_to_PyLong(ASN1_INTEGER *arg)
+ASN1_INTEGER_to_PyLong(const ASN1_INTEGER *arg)
 {
   PyObject *result = NULL;
   PyObject *obj = NULL;
 
-  if ((obj = _PyLong_FromByteArray(ASN1_STRING_data(arg),
+  if ((obj = _PyLong_FromByteArray(ASN1_STRING_get0_data(arg),
                                    ASN1_STRING_length(arg),
                                    0, 0)) != NULL)
     result = PyNumber_Int(obj);
@@ -1242,7 +1246,7 @@ static int check_allowed_dn(X509_NAME *dn)
  * Check whether an ASN.1 TIME value conforms to RFC 5280 4.1.2.5.
  */
 
-static int check_allowed_time_encoding(ASN1_TIME *t)
+static int check_allowed_time_encoding(const ASN1_TIME *t)
 {
   switch (t->type) {
 
@@ -1279,13 +1283,11 @@ static int check_crl(X509_CRL *crl,
   EVP_PKEY *pkey;
   int i, ret = 0;
 
-  if (crl->crl == NULL ||
-      crl->crl->sig_alg == NULL || crl->crl->sig_alg->algorithm == NULL ||
-      OBJ_obj2nid(crl->crl->sig_alg->algorithm) != NID_sha256WithRSAEncryption)
+  if (X509_CRL_get_signature_nid(crl) != NID_sha256WithRSAEncryption)
     record_validation_status(status, NONCONFORMANT_SIGNATURE_ALGORITHM);
 
-  if (!check_allowed_time_encoding(X509_CRL_get_lastUpdate(crl)) ||
-      !check_allowed_time_encoding(X509_CRL_get_nextUpdate(crl)))
+  if (!check_allowed_time_encoding(X509_CRL_get0_lastUpdate(crl)) ||
+      !check_allowed_time_encoding(X509_CRL_get0_nextUpdate(crl)))
     record_validation_status(status, NONCONFORMANT_ASN1_TIME_VALUE);
 
   if ((aki = X509_CRL_get_ext_d2i(crl, NID_authority_key_identifier, NULL, NULL)) == NULL)
@@ -1362,7 +1364,7 @@ static int check_cms(CMS_ContentInfo *cms,
   STACK_OF(X509_CRL) *crls = NULL;
   STACK_OF(X509) *certs = NULL;
   X509_ALGOR *signature_alg = NULL, *digest_alg = NULL;
-  ASN1_OBJECT *oid = NULL;
+  const ASN1_OBJECT *oid = NULL;
   X509 *x = NULL;
   int i, ret = 0;
 
@@ -1585,7 +1587,7 @@ static int check_roa(CMS_ContentInfo *cms,
 
       if (ra == NULL ||
 	  !check_roa_extract_roa_prefix(ra, afi, addrbuf, &prefixlen, &max_prefixlen) ||
-	  !v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen))
+	  !X509v3_addr_add_prefix(roa_resources, afi, safi, addrbuf, prefixlen))
         record_validation_status(status, ROA_RESOURCES_MALFORMED);
 
       else if (max_prefixlen < prefixlen)
@@ -1606,7 +1608,7 @@ static int check_roa(CMS_ContentInfo *cms,
   for (i = 0; i < sk_IPAddressFamily_num(roa_resources); i++) {
     IPAddressFamily *f = sk_IPAddressFamily_value(roa_resources, i);
 
-    if ((afi = v3_addr_get_afi(f)) == 0)
+    if ((afi = X509v3_addr_get_afi(f)) == 0)
       record_validation_status(status, ROA_CONTAINS_BAD_AFI_VALUE);
 
     if (f->ipAddressChoice->type == IPAddressChoice_addressesOrRanges) {
@@ -1621,8 +1623,8 @@ static int check_roa(CMS_ContentInfo *cms,
 	unsigned char b_min[RAW_IPADDR_BUFLEN], b_max[RAW_IPADDR_BUFLEN];
 	int a_len, b_len;
 
-	if ((a_len = v3_addr_get_range(a, afi, a_min, a_max, RAW_IPADDR_BUFLEN)) == 0 ||
-	    (b_len = v3_addr_get_range(b, afi, b_min, b_max, RAW_IPADDR_BUFLEN)) == 0 ||
+	if ((a_len = X509v3_addr_get_range(a, afi, a_min, a_max, RAW_IPADDR_BUFLEN)) == 0 ||
+	    (b_len = X509v3_addr_get_range(b, afi, b_min, b_max, RAW_IPADDR_BUFLEN)) == 0 ||
             a_len != b_len)
           record_validation_status(status, ROA_RESOURCES_MALFORMED);
 
@@ -1635,10 +1637,10 @@ static int check_roa(CMS_ContentInfo *cms,
     }
   }
 
-  if (!v3_addr_canonize(roa_resources))
+  if (!X509v3_addr_canonize(roa_resources))
     record_validation_status(status, ROA_RESOURCES_MALFORMED);
 
-  if (ee_resources == NULL || !v3_addr_subset(roa_resources, ee_resources))
+  if (ee_resources == NULL || !X509v3_addr_subset(roa_resources, ee_resources))
     record_validation_status(status, ROA_RESOURCE_NOT_IN_EE);
 
   result = 1;
@@ -1923,7 +1925,7 @@ extension_get_sia(X509_EXTENSION *ext_)
     if (a->location->type != GEN_URI)
       continue;
     nid = OBJ_obj2nid(a->method);
-    uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+    uri = (char *) ASN1_STRING_get0_data(a->location->d.uniformResourceIdentifier);
     if (nid == NID_caRepository) {
       if ((obj = PyString_FromString(uri)) == NULL)
         goto error;
@@ -2197,7 +2199,7 @@ extension_get_ski(X509_EXTENSION *ext_)
   if ((ext = X509V3_EXT_d2i(ext_)) == NULL)
     lose_openssl_error("Couldn't parse SubjectKeyIdentifier extension");
 
-  result = Py_BuildValue("s#", ASN1_STRING_data(ext),
+  result = Py_BuildValue("s#", ASN1_STRING_get0_data(ext),
                          (Py_ssize_t) ASN1_STRING_length(ext));
 
  error:                         /* Fall through */
@@ -2265,7 +2267,7 @@ extension_get_aki(X509_EXTENSION *ext_)
   if ((ext = X509V3_EXT_d2i(ext_)) == NULL)
     lose_openssl_error("Couldn't parse AuthorityKeyIdentifier extension");
 
-  result = Py_BuildValue("s#", ASN1_STRING_data(ext->keyid),
+  result = Py_BuildValue("s#", ASN1_STRING_get0_data(ext->keyid),
                          (Py_ssize_t) ASN1_STRING_length(ext->keyid));
 
  error:                         /* Fall through */
@@ -3168,7 +3170,7 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
     lose("Uninitialized X509StoreCTX");
 
   if (crl != Py_None)
-    X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_CRL_CHECK);
+    X509_VERIFY_PARAM_set_flags(X509_STORE_CTX_get0_param(ctx->ctx), X509_V_FLAG_CRL_CHECK);
 
   if (policy != Py_None) {
     const char  *oid_txt = NULL;
@@ -3180,8 +3182,8 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
     if ((oid_obj = OBJ_txt2obj(oid_txt, 1)) == NULL)
       lose("Couldn't parse policy OID");
 
-    X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY);
-    X509_VERIFY_PARAM_add0_policy(ctx->ctx->param, oid_obj);
+    X509_VERIFY_PARAM_set_flags(X509_STORE_CTX_get0_param(ctx->ctx), X509_V_FLAG_POLICY_CHECK | X509_V_FLAG_EXPLICIT_POLICY);
+    X509_VERIFY_PARAM_add0_policy(X509_STORE_CTX_get0_param(ctx->ctx), oid_obj);
   }
 
   Py_XINCREF(trusted);
@@ -3193,7 +3195,7 @@ x509_object_verify(x509_object *self, PyObject *args, PyObject *kwds)
   X509_STORE_CTX_set0_crls(ctx->ctx, crl_stack);
 
   X509_STORE_CTX_set_verify_cb(ctx->ctx, x509_store_ctx_object_verify_cb);
-  X509_VERIFY_PARAM_set_flags(ctx->ctx->param, X509_V_FLAG_X509_STRICT);
+  X509_VERIFY_PARAM_set_flags(X509_STORE_CTX_get0_param(ctx->ctx), X509_V_FLAG_X509_STRICT);
 
   ok = X509_verify_cert(ctx->ctx) >= 0;
 
@@ -3240,6 +3242,7 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
   AUTHORITY_INFO_ACCESS *sia = NULL, *aia = NULL;
   STACK_OF(POLICYINFO) *policies = NULL;
   ASN1_BIT_STRING *ski_pubkey = NULL;
+  const ASN1_BIT_STRING *piuid = NULL, *psuid = NULL;
   STACK_OF(DIST_POINT) *crldp = NULL;
   EXTENDED_KEY_USAGE *eku = NULL;
   BASIC_CONSTRAINTS *bc = NULL;
@@ -3289,7 +3292,8 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
    * profile.
    */
 
-  if (!self->x509->cert_info || self->x509->cert_info->issuerUID || self->x509->cert_info->subjectUID)
+  X509_get0_uids(self->x509, &piuid, &psuid);
+  if (piuid != NULL || psuid != NULL)
     record_validation_status(status, NONCONFORMANT_CERTIFICATE_UID);
 
   /*
@@ -3398,12 +3402,12 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
   }
 
   /* Critical */
-  if ((self->x509->ex_flags & EXFLAG_KUSAGE) == 0) 
+  if ((X509_get_extension_flags(self->x509) & EXFLAG_KUSAGE) == 0)
     record_validation_status(status, KEY_USAGE_MISSING);
   else {
     ex_count--;    
     if (!X509_EXTENSION_get_critical(X509_get_ext(self->x509, X509_get_ext_by_NID(self->x509, NID_key_usage, -1))) ||
-        self->x509->ex_kusage != (is_ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE))
+        X509_get_key_usage(self->x509) != (is_ca ? KU_KEY_CERT_SIGN | KU_CRL_SIGN : KU_DIGITAL_SIGNATURE))
       record_validation_status(status, BAD_KEY_USAGE);
   }
 
@@ -3411,12 +3415,12 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
   if ((addr = X509_get_ext_d2i(self->x509, NID_sbgp_ipAddrBlock, &crit, NULL)) != NULL) {
     ex_count--;
     if (!crit || ekunid == NID_id_kp_bgpsec_router ||
-	!v3_addr_is_canonical(addr) || sk_IPAddressFamily_num(addr) == 0)
+	!X509v3_addr_is_canonical(addr) || sk_IPAddressFamily_num(addr) == 0)
       record_validation_status(status, BAD_IPADDRBLOCKS);
     else
       for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
         IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
-        afi = v3_addr_get_afi(f);
+        afi = X509v3_addr_get_afi(f);
         if (afi != IANA_AFI_IPV4 && afi != IANA_AFI_IPV6)
           record_validation_status(status, UNKNOWN_AFI);
         else if (f->addressFamily->length != 2)
@@ -3427,7 +3431,7 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
   /* Critical */
   if ((asid = X509_get_ext_d2i(self->x509, NID_sbgp_autonomousSysNum, &crit, NULL)) != NULL) {
     ex_count--;
-    if (!crit || asid->asnum == NULL || asid->rdi != NULL || !v3_asid_is_canonical(asid) ||
+    if (!crit || asid->asnum == NULL || asid->rdi != NULL || !X509v3_asid_is_canonical(asid) ||
 	(ekunid == NID_id_kp_bgpsec_router && asid->asnum->type == ASIdentifierChoice_inherit))
       record_validation_status(status, BAD_ASIDENTIFIERS);
   }
@@ -3447,7 +3451,7 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
                     ski_hashbuf, &ski_hashlen, EVP_sha1(), NULL) ||
         ski_hashlen != 20 ||
         ski_hashlen != ASN1_STRING_length(ski) ||
-        memcmp(ski_hashbuf, ASN1_STRING_data(ski), ski_hashlen))
+        memcmp(ski_hashbuf, ASN1_STRING_get0_data(ski), ski_hashlen))
       record_validation_status(status, SKI_PUBLIC_KEY_MISMATCH);
   }
 
@@ -3471,21 +3475,27 @@ x509_object_check_rpki_conformance(x509_object *self, PyObject *args, PyObject *
   ok = subject_pkey != NULL;
   if (ok) {
     ASN1_OBJECT *algorithm;
+    RSA *rsa;
+    EC_KEY *ec;
+    const BIGNUM *e;
 
     (void) X509_PUBKEY_get0_param(&algorithm, NULL, NULL, NULL, X509_get_X509_PUBKEY(self->x509));
 
     switch (OBJ_obj2nid(algorithm)) {
 
     case NID_rsaEncryption:
+      rsa = EVP_PKEY_get0_RSA(subject_pkey);
+      RSA_get0_key(rsa, NULL, &e, NULL);
       ok = (EVP_PKEY_base_id(subject_pkey) == EVP_PKEY_RSA &&
             EVP_PKEY_bits(subject_pkey) == 2048 &&
-            BN_get_word(subject_pkey->pkey.rsa->e) == 65537);
+            BN_get_word(e) == 65537);
       break;
 
     case NID_X9_62_id_ecPublicKey:
+      ec = EVP_PKEY_get0_EC_KEY(subject_pkey);
       ok = (EVP_PKEY_base_id(subject_pkey) == EVP_PKEY_EC &&
             ekunid == NID_id_kp_bgpsec_router &&
-            EC_GROUP_get_curve_name(EC_KEY_get0_group(subject_pkey->pkey.ec)) == NID_X9_62_prime256v1);
+            EC_GROUP_get_curve_name(EC_KEY_get0_group(ec)) == NID_X9_62_prime256v1);
       break;
 
     default:
@@ -4042,7 +4052,7 @@ x509_object_get_rfc3779(x509_object *self)
     for (i = 0; i < sk_IPAddressFamily_num(addr); i++) {
       IPAddressFamily *f = sk_IPAddressFamily_value(addr, i);
       const struct ipaddress_version *ip_type = NULL;
-      const unsigned int afi = v3_addr_get_afi(f);
+      const unsigned int afi = X509v3_addr_get_afi(f);
       PyObject **result_obj = NULL;
       int addr_len = 0;
 
@@ -4087,7 +4097,7 @@ x509_object_get_rfc3779(x509_object *self)
         addr_b = (ipaddress_object *) range_b;
         addr_e = (ipaddress_object *) range_e;
 
-        if ((addr_len = v3_addr_get_range(aor, afi, addr_b->address, addr_e->address,
+        if ((addr_len = X509v3_addr_get_range(aor, afi, addr_b->address, addr_e->address,
                                           sizeof(addr_b->address))) == 0)
           lose_value_error("Couldn't unpack IP addresses from BIT STRINGs");
 
@@ -4171,7 +4181,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
       if (strcmp(PyString_AsString(asn_arg), "inherit"))
         lose_type_error("ASID must be an iterable that returns range pairs, or the string \"inherit\"");
 
-      if (!v3_asid_add_inherit(asid, V3_ASID_ASNUM))
+      if (!X509v3_asid_add_inherit(asid, V3_ASID_ASNUM))
         lose_no_memory();
 
       empty = 0;
@@ -4204,7 +4214,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
           goto error;
         }
 
-        if (!v3_asid_add_id_or_range(asid, V3_ASID_ASNUM, asid_b, asid_e))
+        if (!X509v3_asid_add_id_or_range(asid, V3_ASID_ASNUM, asid_b, asid_e))
           lose_openssl_error("Couldn't add range to ASID");
 
         asid_b = asid_e = NULL;
@@ -4218,7 +4228,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
       iterator = NULL;
     }
 
-    if (!empty && (!v3_asid_canonize(asid) ||
+    if (!empty && (!X509v3_asid_canonize(asid) ||
                    !X509_add1_ext_i2d(self->x509, NID_sbgp_autonomousSysNum,
                                       asid, 1, X509V3_ADD_REPLACE)))
       lose_openssl_error("Couldn't add ASID extension to certificate");
@@ -4252,7 +4262,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
         if (strcmp(PyString_AsString(*argp), "inherit"))
           lose_type_error("Argument must be an iterable that returns range pairs, or the string \"inherit\"");
 
-        if (!v3_addr_add_inherit(addr, ip_type->afi, NULL))
+        if (!X509v3_addr_add_inherit(addr, ip_type->afi, NULL))
           lose_no_memory();
 
         empty = 0;
@@ -4280,7 +4290,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
               memcmp(addr_b->address, addr_e->address, ip_type->length) > 0)
             lose("Address range must be two-element sequence of IPAddress objects in ascending order");
 
-          if (!v3_addr_add_range(addr, ip_type->afi, NULL, addr_b->address, addr_e->address))
+          if (!X509v3_addr_add_range(addr, ip_type->afi, NULL, addr_b->address, addr_e->address))
             lose_openssl_error("Couldn't add range to IPAddrBlock");
 
           Py_XDECREF(item);
@@ -4295,7 +4305,7 @@ x509_object_set_rfc3779(x509_object *self, PyObject *args, PyObject *kwds)
       }
     }
 
-    if (!empty && (!v3_addr_canonize(addr) ||
+    if (!empty && (!X509v3_addr_canonize(addr) ||
                    !X509_add1_ext_i2d(self->x509, NID_sbgp_ipAddrBlock,
                                       addr, 1, X509V3_ADD_REPLACE)))
       lose_openssl_error("Couldn't add IPAddrBlock extension to certificate");
@@ -4401,7 +4411,7 @@ x509_object_get_aia(x509_object *self)
   for (i = 0; i < sk_ACCESS_DESCRIPTION_num(ext); i++) {
     ACCESS_DESCRIPTION *a = sk_ACCESS_DESCRIPTION_value(ext, i);
     if (a->location->type == GEN_URI && OBJ_obj2nid(a->method) == NID_ad_ca_issuers) {
-      uri = (char *) ASN1_STRING_data(a->location->d.uniformResourceIdentifier);
+      uri = (char *) ASN1_STRING_get0_data(a->location->d.uniformResourceIdentifier);
       if ((obj = PyString_FromString(uri)) == NULL)
         goto error;
       PyTuple_SET_ITEM(result, n++, obj);
@@ -4534,7 +4544,7 @@ x509_object_get_crldp(x509_object *self)
   for (i = 0; i < sk_GENERAL_NAME_num(dp->distpoint->name.fullname); i++) {
     GENERAL_NAME *gn = sk_GENERAL_NAME_value(dp->distpoint->name.fullname, i);
     if (gn->type == GEN_URI) {
-      uri = (char *) ASN1_STRING_data(gn->d.uniformResourceIdentifier);
+      uri = (char *) ASN1_STRING_get0_data(gn->d.uniformResourceIdentifier);
       if ((obj = PyString_FromString(uri)) == NULL)
         goto error;
       PyTuple_SET_ITEM(result, n++, obj);
@@ -4931,7 +4941,7 @@ x509_store_ctx_object_init(x509_store_ctx_object *self, PyObject *args, GCC_UNUS
   if (!X509_STORE_CTX_set_ex_data(self->ctx, x509_store_ctx_ex_data_idx, self))
     lose_openssl_error("Couldn't set X509_STORE_CTX ex_data");
 
-  X509_VERIFY_PARAM_set_flags(self->ctx->param, X509_V_FLAG_X509_STRICT);
+  X509_VERIFY_PARAM_set_flags(X509_STORE_CTX_get0_param(self->ctx), X509_V_FLAG_X509_STRICT);
   return 0;
 
  error:
@@ -5419,7 +5429,7 @@ static PyObject *
 crl_object_get_this_update (crl_object *self)
 {
   ENTERING(crl_object_get_this_update);
-  return ASN1_TIME_to_Python(X509_CRL_get_lastUpdate(self->crl)); /* sic */
+  return ASN1_TIME_to_Python(X509_CRL_get0_lastUpdate(self->crl)); /* sic */
 }
 
 static char crl_object_set_next_update__doc__[] =
@@ -5461,7 +5471,7 @@ static PyObject *
 crl_object_get_next_update (crl_object *self)
 {
   ENTERING(crl_object_get_next_update);
-  return ASN1_TIME_to_Python(X509_CRL_get_nextUpdate(self->crl));
+  return ASN1_TIME_to_Python(X509_CRL_get0_nextUpdate(self->crl));
 }
 
 static char crl_object_add_revocations__doc__[] =
@@ -5572,8 +5582,8 @@ crl_object_get_revoked(crl_object *self)
   for (i = 0; i < sk_X509_REVOKED_num(revoked); i++) {
     r = sk_X509_REVOKED_value(revoked, i);
 
-    if ((serial = ASN1_INTEGER_to_PyLong(r->serialNumber)) == NULL ||
-        (date = ASN1_TIME_to_Python(r->revocationDate)) == NULL ||
+    if ((serial = ASN1_INTEGER_to_PyLong(X509_REVOKED_get0_serialNumber(r))) == NULL ||
+        (date = ASN1_TIME_to_Python(X509_REVOKED_get0_revocationDate(r))) == NULL ||
         (item = Py_BuildValue("(NN)", serial, date)) == NULL)
       goto error;
 
@@ -6869,7 +6879,7 @@ digest_object_init(digest_object *self, PyObject *args, PyObject *kwds)
     lose("Unsupported digest algorithm");
 
   self->digest_type = digest_type;
-  if (!EVP_DigestInit(&self->digest_ctx, digest_method))
+  if (!EVP_DigestInit(self->digest_ctx, digest_method))
     lose_openssl_error("Couldn't initialize digest");
 
   return 0;
@@ -6882,7 +6892,7 @@ static void
 digest_object_dealloc(digest_object *self)
 {
   ENTERING(digest_object_dealloc);
-  EVP_MD_CTX_cleanup(&self->digest_ctx);
+  EVP_MD_CTX_free(self->digest_ctx);
   self->ob_type->tp_free((PyObject*) self);
 }
 
@@ -6903,7 +6913,7 @@ digest_object_update(digest_object *self, PyObject *args)
   if (!PyArg_ParseTuple(args, "s#", &data, &len))
     goto error;
 
-  if (!EVP_DigestUpdate(&self->digest_ctx, data, len))
+  if (!EVP_DigestUpdate(self->digest_ctx, data, len))
     lose_openssl_error("EVP_DigestUpdate() failed");
 
   Py_RETURN_NONE;
@@ -6927,7 +6937,7 @@ digest_object_copy(digest_object *self)
     goto error;
 
   new->digest_type = self->digest_type;
-  if (!EVP_MD_CTX_copy(&new->digest_ctx, &self->digest_ctx))
+  if (!EVP_MD_CTX_copy(new->digest_ctx, self->digest_ctx))
     lose_openssl_error("Couldn't copy digest");
 
   return (PyObject*) new;
@@ -6956,19 +6966,23 @@ digest_object_digest(digest_object *self)
   unsigned char digest_text[EVP_MAX_MD_SIZE];
   unsigned digest_len = 0;
   PyObject *result = NULL;
-  EVP_MD_CTX ctx;
+  EVP_MD_CTX *ctx;
 
   ENTERING(digest_object_digest);
 
-  if (!EVP_MD_CTX_copy(&ctx, &self->digest_ctx))
+  ctx = EVP_MD_CTX_new();
+  if (ctx == NULL)
+    lose_no_memory();
+
+  if (!EVP_MD_CTX_copy(ctx, self->digest_ctx))
     lose_openssl_error("Couldn't copy digest");
 
-  EVP_DigestFinal(&ctx, digest_text, &digest_len);
+  EVP_DigestFinal(ctx, digest_text, &digest_len);
 
   result = Py_BuildValue("s#", digest_text, (Py_ssize_t) digest_len);
 
  error:
-  EVP_MD_CTX_cleanup(&ctx);
+  EVP_MD_CTX_free(ctx);
   return result;
 }
 
@@ -7579,8 +7593,10 @@ cms_object_signingTime(cms_object *self)
   if ((xa = CMS_signed_get_attr(si, i)) == NULL)
     lose_openssl_error("Couldn't extract signerInfos from CMS message[4]");
 
+#ifdef notyet
   if (xa->single)
     lose("Couldn't extract signerInfos from CMS message[5]");
+#endif
 
   if (X509_ATTRIBUTE_count(xa) != 1)
     lose("Couldn't extract signerInfos from CMS message[6]");
@@ -8311,9 +8327,9 @@ manifest_object_get_files(manifest_object *self)
     FileAndHash *fah = sk_FileAndHash_value(self->manifest->fileList, i);
 
     item = Py_BuildValue("(s#s#)",
-                         ASN1_STRING_data(fah->file),
+                         ASN1_STRING_get0_data(fah->file),
                          (Py_ssize_t) ASN1_STRING_length(fah->file),
-                         ASN1_STRING_data(fah->hash),
+                         ASN1_STRING_get0_data(fah->hash),
                          (Py_ssize_t) ASN1_STRING_length(fah->hash));
     if (item == NULL)
       goto error;
@@ -9687,11 +9703,14 @@ static char pkcs10_object_get_signature_algorithm__doc__[] =
 static PyObject *
 pkcs10_object_get_signature_algorithm(pkcs10_object *self)
 {
-  ASN1_OBJECT *oid = NULL;
+  const ASN1_OBJECT *oid = NULL;
+  const X509_ALGOR *palg = NULL;
+
 
   ENTERING(pkcs10_object_get_signature_algorithm);
 
-  X509_ALGOR_get0(&oid, NULL, NULL, self->pkcs10->sig_alg);
+  X509_REQ_get0_signature(self->pkcs10, NULL, &palg);
+  X509_ALGOR_get0(&oid, NULL, NULL, palg);
 
   return ASN1_OBJECT_to_PyString(oid);
 }
@@ -10198,7 +10217,9 @@ init_POW(void)
    * if you tinker with the build script and start seeing nasty
    * memory-related issues, this might be the cause.
    */
+#ifdef notyet
   CRYPTO_set_mem_functions(PyMem_Malloc, PyMem_Realloc, PyMem_Free);
+#endif
 
   /*
    * Import the DateTime API

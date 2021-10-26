@@ -10217,9 +10217,7 @@ init_POW(void)
    * if you tinker with the build script and start seeing nasty
    * memory-related issues, this might be the cause.
    */
-#ifdef notyet
   CRYPTO_set_mem_functions(PyMem_Malloc, PyMem_Realloc, PyMem_Free);
-#endif
 
   /*
    * Import the DateTime API

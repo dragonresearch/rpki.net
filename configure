@@ -4343,9 +4343,9 @@ else
 			have_usable_openssl=no
 			;;
 		*)
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for v3_addr_validate_path in -lcrypto" >&5
-$as_echo_n "checking for v3_addr_validate_path in -lcrypto... " >&6; }
-if ${ac_cv_lib_crypto_v3_addr_validate_path+:} false; then :
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for X509v3_addr_validate_path in -lcrypto" >&5
+$as_echo_n "checking for X509v3_addr_validate_path in -lcrypto... " >&6; }
+if ${ac_cv_lib_crypto_X509v3_addr_validate_path+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
@@ -4359,27 +4359,27 @@ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 #ifdef __cplusplus
 extern "C"
 #endif
-char v3_addr_validate_path ();
+char X509v3_addr_validate_path ();
 int
 main ()
 {
-return v3_addr_validate_path ();
+return X509v3_addr_validate_path ();
   ;
   return 0;
 }
 _ACEOF
 if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_crypto_v3_addr_validate_path=yes
+  ac_cv_lib_crypto_X509v3_addr_validate_path=yes
 else
-  ac_cv_lib_crypto_v3_addr_validate_path=no
+  ac_cv_lib_crypto_X509v3_addr_validate_path=no
 fi
 rm -f core conftest.err conftest.$ac_objext \
     conftest$ac_exeext conftest.$ac_ext
 LIBS=$ac_check_lib_save_LIBS
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_crypto_v3_addr_validate_path" >&5
-$as_echo "$ac_cv_lib_crypto_v3_addr_validate_path" >&6; }
-if test "x$ac_cv_lib_crypto_v3_addr_validate_path" = xyes; then :
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_crypto_X509v3_addr_validate_path" >&5
+$as_echo "$ac_cv_lib_crypto_X509v3_addr_validate_path" >&6; }
+if test "x$ac_cv_lib_crypto_X509v3_addr_validate_path" = xyes; then :
   system_openssl_has_rfc3779=yes
 else
   system_openssl_has_rfc3779=no

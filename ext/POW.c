@@ -10192,6 +10192,26 @@ static struct PyMethodDef pow_module_methods[] = {
 
 
 /*
+ * Memory function wrappers for OpenSSL, which adds "file" and "line"
+ * arguments to the normal malloc()/realloc()/free() API.
+ */
+
+static void *openssl_api_pymalloc(size_t size, const char *file, int line)
+{
+  return PyMem_Malloc(size);
+}
+
+static void *openssl_api_pyrealloc(void *ptr, size_t size, const char *file, int line)
+{
+  return PyMem_Realloc(ptr, size);
+}
+
+static void openssl_api_pyfree(void *ptr, const char *file, int line)
+{
+  PyMem_Free(ptr);
+}	
+
+/*
  * Module initialization.
  */
 
@@ -10217,7 +10237,9 @@ init_POW(void)
    * if you tinker with the build script and start seeing nasty
    * memory-related issues, this might be the cause.
    */
-  CRYPTO_set_mem_functions(PyMem_Malloc, PyMem_Realloc, PyMem_Free);
+  CRYPTO_set_mem_functions(openssl_api_pymalloc,
+                           openssl_api_pyrealloc,
+                           openssl_api_pyfree);
 
   /*
    * Import the DateTime API

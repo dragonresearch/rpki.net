@@ -7,6 +7,10 @@ Documentation is currently undergoing revision, albeit in fits and starts.
 Quick Start guides for Relying Party and CA on Ubuntu Xenial are
 [here](quickstart/README.md)
 
+## Chinese Language Instructions
+
+CNNIC contributed Chinese language instructions in PDF form.
+
 ## (Old) User's Manual
 
 The [User's Manual](manual/).  This is old, and corresponds, roughly,

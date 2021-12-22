@@ -186,7 +186,7 @@ else
 			have_usable_openssl=no
 			;;
 		*)
-			AC_CHECK_LIB([crypto], [v3_addr_validate_path],
+			AC_CHECK_LIB([crypto], [X509v3_addr_validate_path],
 					       [system_openssl_has_rfc3779=yes],
 					       [system_openssl_has_rfc3779=no])
 
